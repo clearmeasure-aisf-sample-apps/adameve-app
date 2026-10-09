@@ -1,5 +1,14 @@
 @inherits LayoutComponentBase
+@inject ContentLoadResult ContentCheck
 
 <main>
-    @Body
+    @if (ContentCheck.IsLoaded)
+    {
+        @Body
+    }
+    else
+    {
+        <h1>@GameInfo.Title</h1>
+        <p class="content-failure" role="alert" data-testid="content-failure">@GameText.ContentFailure</p>
+    }
 </main>

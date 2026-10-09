@@ -4,8 +4,11 @@ A browser role-playing game for readers aged about 11 to 14. It tells Genesis 1 
 player is Adam or the woman, watches the days of creation, lives in the garden of Eden and is tempted. The design,
 with every decision, is [docs/design.md](docs/design.md).
 
-**State: slice S0, the empty shell.** The site has one page with the title and "Coming soon". There is no game code
-yet. The slices that follow are in section 10 of the design.
+**State: slice S1, the Scripture pipeline and the reader.** The title page says "Coming soon" and links to a reader
+that shows the 80 verses of Genesis 1 to 3, each on a Scripture card with its reference. The verses are parsed at
+start from the canonical file, which the build embeds byte for byte; hard words are underlined and open a short
+definition outside the card. The game-written text is listed for review in [content/README.md](content/README.md).
+The slices that follow are in section 10 of the design.
 
 ## What is here
 
@@ -19,6 +22,7 @@ yet. The slices that follow are in section 10 of the design.
 | `tests/AdamEve.IntegrationTests` | The published site, served by the published host as a process (`ADAMEVE_BASE_URL`) |
 | `tests/AdamEve.AcceptanceTests` | Playwright: desktop Chromium, Pixel 7 (Chromium), iPhone 13 (WebKit), headless |
 | `content/kjv-genesis-1-3.txt` | Genesis 1 to 3, King James Version: the only source of Scripture, byte for byte (see [NOTICE](NOTICE)) |
+| `content/glossary.json`, `content/README.md` | The glossary (game text), and the list of all game-written text for review |
 | `deploy/` | `deploy.ps1`, `verify.ps1`, `settings.json`, `infra/main.bicep`: what the game runs on, and how an environment gets a version |
 | `PrivateBuild.ps1`, `build.ps1`, `BuildFunctions.ps1` | The build |
 

@@ -17,6 +17,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../../src/AdamEve.Content/AdamEve.Content.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="NUnit.Framework" />
     <Using Include="Shouldly" />
   </ItemGroup>
