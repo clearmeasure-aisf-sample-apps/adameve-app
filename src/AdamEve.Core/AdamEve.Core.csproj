@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The story machine and the world rules: no package reference, no project reference, no I/O. -->
+
+</Project>

@@ -1,0 +1,29 @@
+{
+  "routes": [
+    { "route": "/_healthcheck", "rewrite": "/_health/healthcheck.txt",
+      "headers": { "Access-Control-Allow-Origin": "*", "Cache-Control": "no-store" } },
+    { "route": "/alive", "rewrite": "/_health/alive.txt",
+      "headers": { "Access-Control-Allow-Origin": "*", "Cache-Control": "no-store" } },
+    { "route": "/_version", "rewrite": "/_health/version.json",
+      "headers": { "Access-Control-Allow-Origin": "*", "Cache-Control": "no-store" } },
+    { "route": "/_build", "rewrite": "/_health/build-facts.json",
+      "headers": { "Access-Control-Allow-Origin": "*", "Cache-Control": "no-store" } },
+    { "route": "/_framework/*", "headers": { "Cache-Control": "public, max-age=31536000, immutable" } },
+    { "route": "/assets/*", "headers": { "Cache-Control": "public, max-age=31536000, immutable" } },
+    { "route": "/.auth/*", "statusCode": 404 },
+    { "route": "/index.html", "headers": { "Cache-Control": "no-cache" } },
+    { "route": "/service-worker.js", "headers": { "Cache-Control": "no-cache" } }
+  ],
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": ["/_framework/*", "/_health/*", "/assets/*", "/_*", "/*.{js,json,wasm,css,txt,webp,svg,m4a,woff2,webmanifest}"]
+  },
+  "responseOverrides": { "404": { "rewrite": "/404.html" } },
+  "globalHeaders": {
+    "Content-Security-Policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self'; media-src 'self'; worker-src 'self'; frame-ancestors 'none'",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()"
+  },
+  "mimeTypes": { ".wasm": "application/wasm", ".m4a": "audio/mp4", ".webmanifest": "application/manifest+json" }
+}

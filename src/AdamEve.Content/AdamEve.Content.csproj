@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The canonical text, the story, the map and the loaders that read them. References Core only. -->
+  <ItemGroup>
+    <ProjectReference Include="../AdamEve.Core/AdamEve.Core.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,83 @@
+# The integration build. It runs the private build and nothing else, so what is released is what a desk can build:
+# pwsh ./PrivateBuild.ps1. The system's workflow release.yml makes the Octopus package from the artifact
+# deploy-package of a green run on master.
+name: Build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
+env:
+  MAJOR_VERSION: 1
+  MINOR_VERSION: 0
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build:
+    name: Integration build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out, with the history the build facts count
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+          persist-credentials: false
+
+      - name: .NET SDK of global.json
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Node.js, for the Static Web Apps CLI emulator
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install the emulator
+        run: npm ci --no-audit --no-fund
+
+      - name: Private build
+        shell: pwsh
+        run: ./PrivateBuild.ps1 -CI -Version "$env:MAJOR_VERSION.$env:MINOR_VERSION.$env:GITHUB_RUN_NUMBER"
+
+      - name: Keep the package
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-package
+          path: build/deploy-package/**
+          if-no-files-found: error
+
+      - name: Keep the test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults/**
+          if-no-files-found: warn
+
+  build-result:
+    name: Build result
+    needs: [build]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: The integration build succeeded
+        env:
+          RESULT: ${{ needs.build.result }}
+        run: |
+          echo "Integration build: $RESULT"
+          test "$RESULT" = "success"

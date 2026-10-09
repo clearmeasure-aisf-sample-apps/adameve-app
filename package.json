@@ -1,0 +1,9 @@
+{
+  "name": "adameve-app",
+  "private": true,
+  "description": "Build tools of adameve-app: the Static Web Apps CLI, whose emulator serves the published site to the tests.",
+  "license": "MIT",
+  "devDependencies": {
+    "@azure/static-web-apps-cli": "2.0.10"
+  }
+}
