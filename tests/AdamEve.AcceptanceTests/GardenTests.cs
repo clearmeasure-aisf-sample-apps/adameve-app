@@ -487,7 +487,9 @@ public class GardenTests : PlaywrightTest
         var folder = Path.Combine(TestContext.CurrentContext.WorkDirectory, "m1-screenshots");
         Directory.CreateDirectory(folder);
         var path = Path.Combine(folder, name + ".png");
-        await page.ScreenshotAsync(new() { Path = path });
+        // Playwright hides the text caret for a screenshot with a style sheet of its own, which the content security
+        // policy of the site refuses (style-src 'self'): the caret is left as it is, and nothing is injected.
+        await page.ScreenshotAsync(new() { Path = path, Caret = ScreenshotCaret.Initial, Animations = ScreenshotAnimations.Allow });
         TestContext.AddTestAttachment(path);
     }
 }
