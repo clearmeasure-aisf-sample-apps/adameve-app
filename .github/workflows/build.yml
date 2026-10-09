@@ -1,6 +1,15 @@
 # The integration build. It runs the private build and nothing else, so what is released is what a desk can build:
-# pwsh ./PrivateBuild.ps1. The system's workflow release.yml makes the Octopus package from the artifact
-# deploy-package of a green run on master.
+# pwsh ./PrivateBuild.ps1. After a green run on master the system's workflow release.yml makes the Octopus package
+# from the artifact deploy-package and pushes the image of the artifact container-image to the system's registry;
+# nothing is built a second time.
+#
+# What release.yml and the kit rely on:
+#   - the name "Build";
+#   - MAJOR_VERSION and MINOR_VERSION below: the version is MAJOR_VERSION.MINOR_VERSION.<run number>;
+#   - the artifact container-image: container-image.tar.gz, a gzip of an archive "docker load" reads, which holds
+#     the image container-image:<version>;
+#   - the artifact deploy-package: deploy.ps1 and verify.ps1 at its root;
+#   - the job "Build result", which needs every other job and is the one required check.
 name: Build
 
 on:
@@ -40,15 +49,6 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Node.js, for the Static Web Apps CLI emulator
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install the emulator
-        run: npm ci --no-audit --no-fund
-
       - name: Private build
         shell: pwsh
         run: ./PrivateBuild.ps1 -CI -Version "$env:MAJOR_VERSION.$env:MINOR_VERSION.$env:GITHUB_RUN_NUMBER"
@@ -59,6 +59,15 @@ jobs:
           name: deploy-package
           path: build/deploy-package/**
           if-no-files-found: error
+
+      - name: Keep the image
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-image
+          path: build/container-image/container-image.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
 
       - name: Keep the test results
         if: always()

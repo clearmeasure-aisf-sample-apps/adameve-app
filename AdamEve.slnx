@@ -3,6 +3,7 @@
     <Project Path="src/AdamEve.Client/AdamEve.Client.csproj" />
     <Project Path="src/AdamEve.Content/AdamEve.Content.csproj" />
     <Project Path="src/AdamEve.Core/AdamEve.Core.csproj" />
+    <Project Path="src/AdamEve.Host/AdamEve.Host.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AdamEve.AcceptanceTests/AdamEve.AcceptanceTests.csproj" />

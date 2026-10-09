@@ -5,9 +5,9 @@
   Writes build-facts.json: what the site answers at /_build about the build it runs.
 
 .DESCRIPTION
-  build.ps1 calls this after the tests have run against the published site, and the file lands in _health/ of the
-  site, where staticwebapp.config.json serves it as /_build. Adapted from the script of the demo-environment kit's
-  dashboard.
+  build.ps1 calls this after the tests have run against the published site, and the file lands beside the published
+  host, which answers it at /_build and which the image is made from. Adapted from the script of the
+  demo-environment kit's dashboard.
 
   Facts and where they come from:
     version     the parameter (the Build passes MAJOR.MINOR.run_number, the number /_version answers)
@@ -32,8 +32,8 @@
   written.
 
 .PARAMETER OutputPath
-  The file to write. Default: build/publish/wwwroot/_health/build-facts.json under RepoRoot. Its folder must exist:
-  the site is published first.
+  The file to write. Default: build/publish/build-facts.json under RepoRoot. Its folder must exist: the host is
+  published first.
 
 .PARAMETER RepoRoot
   The checkout to count the code of. Default: the parent directory of this script's directory.
@@ -359,7 +359,7 @@ if (-not $Repository) { $Repository = $env:GITHUB_REPOSITORY }
 if (-not $RunId) { $RunId = $env:GITHUB_RUN_ID }
 
 $resolve = { param([string]$Path) $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path) }
-$OutputPath = if ($OutputPath) { & $resolve $OutputPath } else { Join-Path -Path $RepoRoot -ChildPath 'build/publish/wwwroot/_health/build-facts.json' }
+$OutputPath = if ($OutputPath) { & $resolve $OutputPath } else { Join-Path -Path $RepoRoot -ChildPath 'build/publish/build-facts.json' }
 $TestResultsPath = if ($TestResultsPath) { & $resolve $TestResultsPath } else { Join-Path $RepoRoot 'TestResults' }
 $CoveragePath = if ($CoveragePath) { & $resolve $CoveragePath } else { $TestResultsPath }
 
@@ -374,7 +374,7 @@ if ("$inside".Trim() -ne 'true') {
 
 $outputDirectory = Split-Path -Parent $OutputPath
 if (-not (Test-Path -LiteralPath $outputDirectory -PathType Container)) {
-    Write-LogLine "FAIL the folder $outputDirectory does not exist: publish the site first (pwsh ./PrivateBuild.ps1 does)"
+    Write-LogLine "FAIL the folder $outputDirectory does not exist: publish the host first (pwsh ./PrivateBuild.ps1 does)"
     exit 1
 }
 

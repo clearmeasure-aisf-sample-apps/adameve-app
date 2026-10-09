@@ -18,6 +18,11 @@ It is the first application of the new demo system `adameve`, built with the dem
 repository is `adameve-app` on branch `master`, with `app.source: repository` and `deployable.hosting: own` on Azure
 Static Web Apps Free. There is no database, and the environments are `tdd` and `prod`.
 
+> **Changed 2026-10-09 (D17, section 12).** Jeffrey decided that the game runs on Azure Container Apps express, in
+> the environment the system owns, instead of Static Web Apps Free. Sections 0, 7.5, 7.6, 8, 9, 10 and 11 carry a
+> note where that changed them. Where an older sentence elsewhere still names Static Web Apps, its emulator or
+> `staticwebapp.config.json`, section 7.6 says what does that work now.
+
 **A fleet of its own.** The system belongs to a new, separate fleet: its own fleet platform repository, copied from
 the demo-environment kit, with the owner session "Adam and woman in the garden of Eden". It is not part of the
 existing Clear Measure demo fleet. It uses the same Azure subscription and the same Octopus instance
@@ -39,12 +44,12 @@ existing Clear Measure demo fleet. It uses the same Azure subscription and the s
 | Modesty (hard rule M1) | Before 3:7, the private parts of Adam and the woman are always turned away from the viewer or covered (hair, foliage, plants, props), in every sprite frame, pose, animation frame, portrait, cutscene shot and camera angle. From 3:7 the fig-leaf aprons cover; from 3:21 the coats of skins. Characters are cut-out rigs with occluders bound to the body. A build test checks pixel coverage, the running game checks every frame, and a human review checks every asset (section 1, section 5.6) |
 | Assets | All generated: art, sprites, backgrounds, the fruit, music and sound. Tool-agnostic specs live in the repository, with one style sheet, provenance and licence for each asset, and a review before commit (section 5.5) |
 | Rendering | HTML canvas 2D through one small JavaScript module, driven by C# with `[JSImport]`/`[JSExport]`. All text, dialogue and menus are Blazor DOM components over the canvas. No game library |
-| Architecture | Onion layers. `AdamEve.Core`: story state machine and world rules, no UI and no I/O. `AdamEve.Content`: KJV parser, story, map, rig and asset loaders. `AdamEve.Client`: Blazor WebAssembly standalone, published as static files. There is no server |
-| Hosting | Azure Static Web Apps Free, one site per environment (`swa-adameve-tdd-web`, `swa-adameve-prod-web`), in Central US. `/_healthcheck`, `/alive`, `/_version` and `/_build` are static files the build writes; `staticwebapp.config.json` carries the headers, CORS and fallback. The payload budget of 3.0 MB on first load is a quality gate for phones, not a bandwidth necessity |
-| Rollback | A small storage account in each environment archives the site of every released version. `deploy.ps1` deploys an earlier version from it (section 9.2 explains why the Octopus feed is not enough) |
+| Architecture | Onion layers. `AdamEve.Core`: story state machine and world rules, no UI and no I/O. `AdamEve.Content`: KJV parser, story, map, rig and asset loaders. `AdamEve.Client`: Blazor WebAssembly standalone, published as static files. There is no server for the game: no game code runs outside the browser. *Changed 2026-10-09 (D17):* a fourth, outermost project, `AdamEve.Host` (ASP.NET Core), serves those static files and answers the health paths (section 7.6) |
+| Hosting | *Changed 2026-10-09 (D17), replacing Static Web Apps Free:* Azure Container Apps express. One container app per environment (`ca-adameve-tdd-web`, `ca-adameve-prod-web`) in the express environment the system owns (`cae-adameve`, resource group `rg-adameve-apps`, Central US), scaled to zero when nobody plays. The image holds `AdamEve.Host`, which serves the published client with the brotli files the publish step wrote, the headers, CORS and the fallback, and answers `/_healthcheck`, `/alive`, `/_version` and `/_build` (section 7.6). The payload budget of 3.0 MB on first load is a quality gate for phones, not a bandwidth necessity |
+| Rollback | *Changed 2026-10-09 (D17):* no archive. The image of every released version stays in the system's registry, its tag locked, and `deploy.ps1` deploys any version by its tag (section 9.2). The storage archive of D12 is not needed |
 | Saves | `localStorage` only. No account, no name, no free text, no analytics, no cookies, no request to any other origin |
-| Tests | Unit: NUnit, bUnit and SkiaSharp image checks. Integration: scripted headless playthroughs, the static output served by the Static Web Apps CLI emulator, and Pester. Full-system: Playwright on desktop Chromium with a keyboard, Pixel 7 (Chromium, touch) and iPhone 13 (WebKit, touch), all headless, against the published output served by the emulator |
-| Delivery | `build.yml` is named `Build`, calls only `./PrivateBuild.ps1 -CI`, keeps the artifact `deploy-package` and has a job `Build result`. `deploy.ps1` applies the app's own Bicep deployment stack and uploads the site with a deployment token fetched at run time. `verify.ps1` checks the site and writes the nodes file |
+| Tests | Unit: NUnit, bUnit and SkiaSharp image checks. Integration: scripted headless playthroughs, the published site served by its own host as a process (*Changed 2026-10-09 (D17):* not the Static Web Apps CLI emulator), and Pester. Full-system: Playwright on desktop Chromium with a keyboard, Pixel 7 (Chromium, touch) and iPhone 13 (WebKit, touch), all headless, against the same process |
+| Delivery | `build.yml` is named `Build`, calls only `./PrivateBuild.ps1 -CI`, keeps the artifacts `deploy-package` and `container-image` and has a job `Build result`. *Changed 2026-10-09 (D17):* the release pushes the image to the system's registry, and `deploy.ps1` applies the app's own Bicep deployment stack, which names the image of the version; there is no upload and no deployment token. `verify.ps1` checks the site and writes the nodes file |
 
 ---
 
@@ -121,7 +126,8 @@ mascot.
 
 **Children's privacy.** The game asks for and stores no personal data. It has no account, no free-text entry, no
 analytics, no advertising and no third-party fonts or scripts, and it makes no request outside its own origin. The
-built-in authentication routes of Static Web Apps are closed (`/.auth/*` answers 404), so no cookie is ever set. A
+built-in authentication routes of Static Web Apps are closed (`/.auth/*` answers 404), so no cookie is ever set
+(since 2026-10-09, D17, the host has no such routes at all, and sets no cookie). A
 short "For parents and teachers" page says all this, including that the art and music were generated and reviewed
 (section 5.5).
 
@@ -675,6 +681,8 @@ encoded as WebP at about quality 85.
 - **Load size budget.** This is a quality gate for phones on mobile data and slow networks, not a bandwidth
   necessity: Static Web Apps Free allows 100 GB a month, which is roughly 30,000 first visits at 3 MB. The build
   fails above it, counting brotli-compressed bytes. `verify.ps1` measures what the site actually sends.
+  *Changed 2026-10-09 (D17):* on Container Apps express there is no monthly allowance of that kind; the gate stands
+  for the reason given, phones.
 
 | Part | Budget |
 |---|---|
@@ -693,7 +701,8 @@ encoded as WebP at about quality 85.
 - **Compression on the host.** Static Web Apps compresses responses itself. Slice S0 measures what it sends for
   `.wasm`, the webcil `.wasm` assemblies and `.js` with `Accept-Encoding: br`. If a file type arrives uncompressed,
   the client loads the published `.br` files through Blazor's `loadBootResource` with a small brotli decoder, and the
-  budget is measured that way.
+  budget is measured that way. *Changed 2026-10-09 (D17):* the host answers with the published `.br` files itself
+  (section 7.6), so no decoder is needed; `verify.ps1` still measures what arrives.
 - **No AOT.** Ahead-of-time compilation would roughly double the download for speed the game does not need: the
   per-frame work is small, and the .NET 10 interpreter with its jiterpreter keeps it under a millisecond. Revisit
   only if a measured frame budget fails.
@@ -756,7 +765,7 @@ How it works:
   `adameve.save.corrupt`, and the player sees "Your saved game could not be read. Start again?"
 - Autosave at every beat change and at the end of each day; one save slot plus "New game".
 - No cookies, no account, no analytics, no telemetry from the browser. The Content Security Policy permits only the
-  game's own origin (sent by `staticwebapp.config.json`, section 7.6):
+  game's own origin (sent by the host, section 7.6; until 2026-10-09 by `staticwebapp.config.json`):
   `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:;
   connect-src 'self'; font-src 'self'; media-src 'self'; worker-src 'self'; frame-ancestors 'none'`.
 - At start the client parses the embedded KJV file and validates the story. If either fails, it shows "The game's
@@ -853,13 +862,68 @@ Dependencies point inward: Client → Content → Core, and Core references noth
 published `wwwroot` of `AdamEve.Client` is the whole deployable. Prerequisites for the private build: the .NET 10
 SDK, PowerShell 7.4, and Node.js 20 LTS for the emulator.
 
+**Changed 2026-10-09 (D17).** The layout above is the one of 2026-10-08. What differs now:
+
+- `src/AdamEve.Host/` is a fourth project and the outermost: ASP.NET Core, no game code. Publishing it publishes
+  the client and takes the client's `wwwroot` as its web root; the published host is the content of the container
+  image. Host → Client → Content → Core, and Core still references nothing.
+- No `package.json`, no `package-lock.json`, no Node.js: the tests ask the published host, started as a process.
+- No `wwwroot/staticwebapp.config.json`: the host sends the headers and decides the fallback (section 7.6).
+- `deploy/` holds `deploy.ps1`, `verify.ps1`, `settings.json` and `infra/main.bicep`.
+- `build.ps1` has a step `ContainerImage` after `BuildFacts`: the .NET SDK builds the image, without a Dockerfile
+  and without a Docker daemon.
+
+Prerequisites for the private build: the .NET 10 SDK and PowerShell 7.4.
+
 The bootcamp app's choice of test framework (NUnit and Shouldly) is to be confirmed when the shell is made. If it
 uses another, adameve follows it.
 
-### 7.6 Hosting: Azure Static Web Apps Free
+### 7.6 Hosting: Azure Container Apps express
 
-**Decision** (D10): Azure Static Web Apps Free, one site per environment, `swa-adameve-tdd-web` and
-`swa-adameve-prod-web`, in Central US, still `deployable.hosting: own`.
+**Decision** (D17, 2026-10-09, replacing D10): Azure Container Apps express, in the express environment the system
+owns: `cae-adameve` in the resource group `rg-adameve-apps`, Central US. One container app per environment,
+`ca-adameve-tdd-web` and `ca-adameve-prod-web`, still `deployable.hosting: own`. The model is the system jpcom
+(`jeffreypalermo-sites/jeffreypalermo.com`), which runs the same way.
+
+| Part | How |
+|---|---|
+| The image | `<registry>/adameve/web:<version>` in the system's registry. The Build makes it once (`container-image:<version>`, artifact `container-image`), from the folder the tests asked; the release pushes it and locks its tag. It is the ASP.NET Core runtime image without a shell (`aspnet:10.0-noble-chiseled`) with the published host, run by an unprivileged user, listening on port 8080 |
+| The app | Each environment's app is a resource of the application's own deployment stack, `stack-adameve-<env>-web`, in the tier's resource group, with the identity `id-adameve-<env>-app`, which pulls the image. Only the runtime, `cae-adameve`, is shared, and it is the system's: the application creates nothing there |
+| Scale | 0 to 1 replica in both environments (`deploy/settings.json`). An app nobody asks stops; the next request starts it, and that first answer takes some seconds longer (the cold start) |
+| What express leaves out | A custom domain (the app keeps its `azurecontainerapps.io` address; a domain of the game's own needs a front door or a standard environment), HTTP/2, Key Vault secret references. tdd and prod share one runtime. The game needs none of the first three today |
+
+**The host** (`src/AdamEve.Host`, ASP.NET Core, no game code) does what the service and
+`staticwebapp.config.json` did:
+
+| What | How |
+|---|---|
+| The files of the site | The published `wwwroot` of the client. Where the publish step wrote a brotli or gzip file beside a file and the browser accepts it, that file is the answer (`Content-Encoding`, `Vary: Accept-Encoding`, an `ETag`): nothing is compressed while a request waits, and the first load on the wire is the size the build measured |
+| Caching | `public, max-age=31536000, immutable` for `/_framework/*` and `/assets/*` (the build fails when a file there has no fingerprint in its name); `no-cache` for everything else, `index.html` first; `no-store` for the health paths |
+| Security headers | The content security policy below, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Permissions-Policy: camera=(), microphone=(), geolocation=()`, on every answer |
+| The import map | .NET 10 writes an inline import map into the published `index.html`, which `script-src 'self'` refuses, and then the runtime does not start. The host reads the `index.html` it serves and names that one import map by its SHA-256 in `script-src`. No other inline script runs |
+| Navigation | A path without a file name that is not one of the site's own (`/_*`, `/alive`, `/_framework/*`, `/assets/*`) gets `index.html`. Every other path that names nothing gets 404 with `404.html` |
+| `/_healthcheck` | A real check: 200 and `Healthy` when the process has the `index.html` and the `_framework` folder it is to serve, 503 and `Unhealthy` otherwise |
+| `/alive` | 200 and `alive` whenever the process answers |
+| `/_version` | `{"version":"1.0.42"}`: the version compiled into the process |
+| `/_build` | `build-facts.json`, which the build wrote beside the host after the last test (section 9.1) |
+| `/_health/files.json` | Every file of the site: path, size, SHA-256. The tests and `verify.ps1` compare the answers with it |
+
+The four health paths allow every origin (`Access-Control-Allow-Origin: *`).
+
+**What the endpoints prove now.** `/_healthcheck` answering `Healthy` proves that a process of this version runs in
+the environment and has its files. It can answer `Unhealthy`, which the static file never could. It still cannot
+prove that the game starts in a player's browser: the full-system tests do that, before the image is made. A build
+that stops early leaves no image: the image is made after the last test, from the very folder the tests asked.
+
+**What changed against Static Web Apps Free.** No limit of 10 Free sites to share with the dashboards (open
+question 1 is closed). No deployment token. An earlier version can be put back, because its image is still in the
+registry (D12's archive is not needed). The price: a cold start after idle time, no custom domain on express, and
+the address of the host is the app's, not an edge's: the files are served from Central US.
+
+**The decision of 2026-10-08 (D10), replaced by D17 on 2026-10-09.** What follows, to the end of this section, is
+the text of that day, kept for the record: the comparison that chose Static Web Apps Free, its limit of 10 sites,
+what its static endpoints proved, and its configuration file. None of it describes the game as it is hosted now.
+The headers, the cache rules and the fallback of that configuration file are the ones the host sends.
 
 **The three options against the kit's contract**, kept for the record. The rows that decide are the first three.
 
@@ -961,6 +1025,14 @@ build and in CI, headless.
 The emulator applies the real configuration file, so the tests exercise the same routes and headers Azure will. It
 does not compress like Azure; compression is measured after deployment instead (section 9.2).
 
+**Changed 2026-10-09 (D17).** There is no emulator and no configuration file. The integration tests and the
+full-system tests ask the published host (`dotnet AdamEve.Host.dll`, started by the build on a free local port, its
+address in `ADAMEVE_BASE_URL`): the same code and the same files the image holds, so the routes, the headers, the
+fallback and the brotli answers are the ones Azure will send. No test needs Docker. Where a Docker daemon answers
+(the integration build), the build also loads the image as the release does, runs it and asks it its version, its
+health and its build facts. The parts of the host that decide something (the policy, the cache rule of a path, which
+compressed file answers) have unit tests. `verify.ps1` measures the first load again after a deployment.
+
 Tests reach a chapter quickly by writing a save into `localStorage` before the page loads. The save format is the
 scenario format, so the game has no test-only code path. Assertions use the DOM (cards, choices, the status line,
 and the `data-` attributes on the game root: chapter, beat, player tile, concealment verdict), never pixel
@@ -1040,7 +1112,9 @@ Static configuration:
 
 ### 8.2 Integration test examples
 
-Against the published site in the emulator:
+Against the published site in the emulator (*changed 2026-10-09, D17:* served by its own host; `Auth_routes_are_404` no
+longer applies, and the deployment scripts are tested with a stub `az` only, there being no `npx`, no token and no
+archive):
 
 - `Healthcheck_is_200_Healthy_with_CORS_star`; `Alive_is_200_with_CORS_star`.
 - `Version_matches_the_build`; `Build_serves_build_facts_json`.
@@ -1099,7 +1173,8 @@ Each test runs on all three device profiles unless it says otherwise.
 - **Payload budget** (section 6), after `dotnet publish`: the `.br` files the boot resources load, plus the
   first-load assets, total 3.0 MB or less; otherwise the build fails.
 - **Warnings are errors**, in C# and in PSScriptAnalyzer for the scripts.
-- **`healthcheck.txt` says `Healthy` only after every test passed.**
+- **`healthcheck.txt` says `Healthy` only after every test passed.** *Changed 2026-10-09 (D17):* there is no such
+  file. The image is made only after every test passed, so a build that stops early has nothing to release.
 - **Code coverage** is collected (`XPlat Code Coverage`) and reported in the build facts. No threshold is set,
   because the threshold belongs to the application (decision 0019). The proposal is 80% for `AdamEve.Core` once the
   story machine exists.
@@ -1126,11 +1201,11 @@ jobs:
     steps:
       - checkout (fetch-depth 0, for the code counts of the build facts; LFS not fetched)
       - setup-dotnet (global-json-file)
-      - setup-node (20, cache npm); npm ci     # the Static Web Apps CLI emulator for the tests
       - pwsh ./PrivateBuild.ps1 -CI -Version "$MAJOR_VERSION.$MINOR_VERSION.$GITHUB_RUN_NUMBER"
           # Init, Compile, UnitTests, Publish, StaticFiles, PayloadBudget, IntegrationTests (incl. Pester),
-          # playwright install --with-deps chromium webkit, AcceptanceTests, BuildFacts, Package
+          # playwright install --with-deps chromium webkit, AcceptanceTests, BuildFacts, ContainerImage, Package
       - upload-artifact deploy-package   (build/deploy-package/**)
+      - upload-artifact container-image  (build/container-image/container-image.tar.gz)
       - upload-artifact test-results     (TestResults/**, Playwright traces and M1 screenshots; always)
   build-result:
     name: Build result
@@ -1151,18 +1226,32 @@ build facts record this (decision 0028): `build.command` is `pwsh ./PrivateBuild
 - coverage;
 - `analysis`: the analyzer warning count, which is zero because warnings are errors.
 
-They are written to `wwwroot/_health/build-facts.json` of the published output, which `/_build` serves.
+They are written to `build-facts.json` beside the published host, which answers them at `/_build`.
 
 The kit adds `secret-scan.yml`, and `release.yml` (from `release-application.yml`), which makes the package
 `adameve-web.<version>.zip` from `deploy-package`.
 
+**Changed 2026-10-09 (D17).** The workflow above no longer installs Node.js, and it keeps a second artifact:
+`container-image`, one file `container-image.tar.gz`, a gzip of an archive that `docker load` reads and that holds
+the image `container-image:<version>`. `release.yml` loads it, pushes it to the system's registry as
+`<registry>/adameve/web:<version>` and locks the tag. Nothing is built a second time. The image is built in the
+private build by the .NET SDK (`dotnet msbuild -t:PublishContainer`), so the workflow still calls nothing but
+`PrivateBuild.ps1`.
+
 ### 9.2 The package and the two scripts
 
-The artifact `deploy-package` is the whole package:
+**Changed 2026-10-09 (D17).** This section is rewritten for Container Apps express. The text of 2026-10-08 described
+a package that carried the site (`site.zip`, `version.txt`), an upload with the Static Web Apps CLI and a deployment
+token, and, from slice S3, a storage archive of released sites. None of that exists now.
 
-- `deploy.ps1`, `verify.ps1`, `main.bicep`;
-- `site.zip`: the published `wwwroot`, with `staticwebapp.config.json` and `_health/`;
-- `version.txt`.
+The artifact `deploy-package` is the whole package: the `deploy/` folder as committed.
+
+- `deploy.ps1`, `verify.ps1`;
+- `settings.json`: the port, the names of the pull identity and of the system's Container Apps environment, and the
+  scale of each environment;
+- `infra/main.bicep`: the container app.
+
+The package does not hold what it deploys. The image of a version is in the system's registry.
 
 Both scripts follow the kit's script preamble:
 
@@ -1171,51 +1260,51 @@ Both scripts follow the kit's script preamble:
 - log lines `==> step`, `PASS`, `FAIL`, `SKIP`.
 
 They write **nothing to standard error**, because a deployment treats an error line as a failure. Every `az` call has
-`--only-show-errors`. The Static Web Apps CLI runs with `NPM_CONFIG_UPDATE_NOTIFIER=false` and `--loglevel=error`,
-its output is captured, and the script re-emits it as standard output, judging success by the exit code alone.
+`--only-show-errors`; what the Azure CLI writes to standard error is captured, and the script writes it to standard
+output when a step fails, judging success by the exit code alone.
 
 **`deploy.ps1 -Environment -Version -Context`** runs as the tier's deploy identity, already signed in:
 
-1. Read the context: `resourceGroup`, `deployPrincipalId`, `environment`, `version`.
-2. Apply the deployment stack `stack-adameve-<env>-web` from `main.bicep` in the tier's resource group, with deny
-   settings `denyWriteAndDelete` that exclude `deployPrincipalId`, and `--action-on-unmanage deleteResources`. The
-   stack holds:
-   - the static web app `swa-adameve-<env>-web`: Free, Central US, tags `system`, `environment`, `deployable`;
-   - from slice S3, the storage account `stadameve<env>rel` (Standard LRS, no public blob access, TLS 1.2), its
-     private container `releases`, and a role assignment *Storage Blob Data Contributor* for `deployPrincipalId`.
-3. Choose the content:
-   - When `-Version` equals `version.txt`: use `site.zip`, and (from S3) upload it to `releases/<version>.zip` unless
-     a blob is already there.
-   - When it differs (the kit's "Revert deployable"): download `releases/<version>.zip`. Before S3, or when that blob
-     is missing, print that this package cannot deploy version `<version>` and exit 1. This is the kit's documented
-     limit for a package that carries what it deploys.
-4. Fetch the deployment token: `az staticwebapp secrets list --name swa-adameve-<env>-web --query properties.apiKey`.
-   Hold it only in the process environment as `SWA_CLI_DEPLOYMENT_TOKEN`. It is never written to a file, a log or a
-   command-line argument, and is removed from the environment when the upload ends.
-5. Expand the content into an empty working directory that holds only the site folder. Run
-   `npx --yes @azure/static-web-apps-cli@2.0.10 deploy ./site --env production`. The worker needs Node.js 18 or
-   later; the kit's worker-tools image has it, and the CLI downloads its deployment client.
+1. Read the context: `system`, `resourceGroup`, `registryServer`, `deployPrincipalId`; and `settings.json`.
+2. Read the system's Container Apps environment, `cae-adameve` in `rg-adameve-apps`. The system's seed creates it and
+   gives the deploy identities of both tiers the right to read it and to place apps in it. The script creates
+   nothing there. Missing, not ready or not an express environment: it says so and exits 1 before anything is
+   applied.
+3. Apply the deployment stack `stack-adameve-<env>-web` from `infra/main.bicep` in the tier's resource group, with
+   deny settings `denyWriteAndDelete` that exclude `deployPrincipalId`, and `--action-on-unmanage deleteResources`.
+   The stack holds one resource, the container app `ca-adameve-<env>-web`:
+   - in `cae-adameve`, in the region of that environment;
+   - the image `<registryServer>/adameve/web:<version>`, with the registry and the pull identity
+     `id-adameve-<env>-app` in the same request: an express app keeps no registry setting, so both come with every
+     request that names an image;
+   - ingress from outside on port 8080, `http` transport (express has no HTTP/2), https only;
+   - 0.5 CPU and 1 GiB, 0 to 1 replica;
+   - tags `system`, `application`, `stage` (not `environment` and `deployable`: the system's own probe watches
+     container apps that carry those).
+   A failure that may be the platform's own is tried once more after a minute; one that no second attempt changes
+   (a template that does not compile, a request Azure does not allow, an image that is not in the registry) is not.
+4. Read the app back: its provisioning state is `Succeeded` and it shows the image of the version, or the script
+   prints the app's `deploymentErrors` and exits 1.
 
-**Why the archive, when Octopus keeps every package.** The built-in feed does keep every released package (never
-replaced). But "Revert deployable" runs the `deploy.ps1` of the **new** package with the old version number, and
-under the kit's contract that script receives the Azure deploy identity and no Octopus credential. It cannot fetch
-the old package from the feed, and giving it an Octopus key would put a secret where the application's code runs.
-Static Web Apps Free keeps no history of earlier deployments to return to either. So the archive is still needed. A
-storage account in the tier's resource group is the simplest form: same identity, no new secret, a few megabytes for
-each version, and a cost of a few cents a month (D12).
+**Any released version, by its tag.** "Revert deployable" runs the `deploy.ps1` of the **new** package with the old
+version number. That works here: the script deploys what the number names, the image
+`<registry>/adameve/web:<old version>`, which the release pushed and locked when that version was released. A
+version that was never released has no image; Azure refuses it, and the script exits 1. So the storage archive of
+D12 is not needed, and slice S3 is dropped (section 10).
 
 **`verify.ps1 -Environment -Version -Context`:**
 
-1. Read the site's address: `az staticwebapp show --query defaultHostname` gives
-   `https://<name>.azurestaticapps.net`.
-2. Ask `/_version` until it answers `-Version`, for up to 5 minutes; a new deployment can take that long to serve.
-3. Ask `/_healthcheck` (200, `Healthy`) and `/alive`. Check `Access-Control-Allow-Origin: *` on each and on
-   `/_version` and `/_build`. Ask `/` and find `<title>Adam and woman in the garden of Eden</title>`.
+1. Read the app's name, address and region from the outputs of `stack-adameve-<env>-web`.
+2. Ask `/_version` until it answers `-Version`, for up to 5 minutes. An app scaled to zero starts with the first
+   request, and a new version takes a moment to take over.
+3. Ask `/_healthcheck` (200, `Healthy`), `/alive` and `/_build`. Check `Access-Control-Allow-Origin: *` and
+   `Cache-Control: no-store` on each and on `/_version`. Ask `/` and find
+   `<title>Adam and woman in the garden of Eden</title>` and the content security policy.
 4. **Check the deployment's files.** Read `/_health/files.json`, fetch every file listed, and compare sizes and
-   SHA-256. This is about 4 to 6 MB per deployment, well within the monthly data. It proves every file arrived
-   intact, which the static health file cannot.
+   SHA-256.
 5. **Measure the first-load transfer.** Fetch the first-load files again with `Accept-Encoding: br` and sum the bytes
-   transferred. Fail above 3.0 MB: the gate is checked against what Azure really sends.
+   transferred. Fail above 3.0 MB, and fail when no answer came as brotli: the gate is checked against what the app
+   really sends.
 6. Write `nodesFile` when the context names one:
 
 ```json
@@ -1224,13 +1313,16 @@ each version, and a cost of a few cents a month (D12).
   "alivePath": "/alive",
   "versionPath": "/_version",
   "nodes": [
-    { "name": "swa-adameve-tdd-web", "region": "centralus", "role": "primary",
-      "url": "https://<generated-name>.azurestaticapps.net" }
+    { "name": "ca-adameve-tdd-web", "region": "centralus", "role": "primary",
+      "url": "https://ca-adameve-tdd-web.<generated>.centralus.azurecontainerapps.io" }
   ]
 }
 ```
 
-`healthReport` stays at its default (true). An hourly `/alive` costs a few bytes, and a static site has no cold start.
+`healthReport` stays at its default (true). *Changed 2026-10-09 (D17):* the reason given on 2026-10-08, that a static
+site has no cold start, no longer holds. The system's hourly health report now starts an app that has stopped, once
+an hour in each environment. jpcom turned the report off for that reason (`"healthReport": false`). Whether adameve
+does is open (section 11, question 4).
 
 ### 9.3 Registry and adoption (for the owner session)
 
@@ -1259,6 +1351,9 @@ The **empty shell** (slice S0) contains:
   `/_healthcheck` 200 with CORS in the emulator; Playwright, the title on the three device profiles;
 - the build scripts, `package.json` with the pinned emulator, and `build.yml`;
 - `deploy/`, complete except for the storage archive;
+
+  *Changed 2026-10-09 (D17):* the shell has a fourth project, `AdamEve.Host`; no `staticwebapp.config.json`, no
+  `_health/` files, no `package.json` and no emulator; and `deploy/` is complete, there being no archive.
 - the payload budget gate;
 - `.gitattributes` (`content/kjv-genesis-1-3.txt -text`, Git LFS for `assets/source/**`);
 - `LICENSE` (MIT); a `NOTICE` on the KJV text (section 12, D11);
@@ -1279,11 +1374,11 @@ verified.
 
 | Slice | Content | Acceptance criteria | Size |
 |---|---|---|---|
-| **S0 Empty shell** | Section 9.4. Before anything is deployed, count the subscription's Free Static Web Apps (section 7.6) | Two Free places confirmed, or the question answered. Private build green locally and in CI; `Build result` succeeds. The first release deploys to tdd and verifies; the four paths answer with CORS `*`; every file matches `files.json`; the compression Azure applies is measured and recorded in the README; nodes recorded in the system repository; payload under 3.0 MB; prod promotion succeeds | M |
+| **S0 Empty shell** | Section 9.4. *Changed 2026-10-09 (D17):* on Container Apps express; there is no Free Static Web App to count. Before anything is deployed, the system's express environment `cae-adameve` exists | Private build green locally and in CI; `Build result` succeeds. The first release pushes the image and deploys to tdd and verifies; the four paths answer with CORS `*`; every file matches `files.json`; the first load is measured as the app sends it, with brotli, and recorded in the README; nodes recorded in the system repository; payload under 3.0 MB; prod promotion succeeds | M |
 | **S1 Scripture pipeline and reader** | The canonical file, `KjvParser`, `ScriptureDocument`, Scripture card, glossary, reader screen, start-up content check | 80 verses (31/25/24); byte round trip; SHA-256 pinned; every mid-paragraph marker and the end-of-line 3:5 marker tested; spelling and U+2019 kept; the reader shows 80 verses on all three devices | M |
 | **S2 Walk the garden** | Canvas renderer and render list, input adapters (keys, WASD, D-pad, tap-to-move), collision, camera, the central glade and two regions with placeholder art, placeholder rigs for Adam and the woman with companion foliage and the M1 verdict, portrait and landscape, settings (text size, sound), save and resume of the position | Arrow, WASD, D-pad and tap tests pass; rotation keeps state; the frame-budget test passes on a throttled Pixel 7; 360 × 640 fits; reload resumes; no outside request; `data-concealment` is `ok` in all facings | L |
 | **S2b Generated-asset pipeline** | `assets/` (section 5.5): style sheet, palette, prompt preamble, specs, `process.ps1`, `check.ps1`, provenance, tool terms, the review checklist and contact sheet; the M1 coverage check over rigs (section 5.6); first model sheets (Adam, the woman, the fruit) | Every shipped asset has a spec and an approved provenance with a matching hash; the M1 coverage test covers every rig frame, facing and variant; budgets enforced; the prompt blocklist check passes | L |
-| **S3 Revertable deployments** | The storage archive of released sites; `deploy.ps1` deploys an earlier version from it | Pester tests for both cases. A deliberately failed verification in tdd reverts to the previous version, and "Verify revert" passes | S |
+| **S3 Revertable deployments** | **Dropped 2026-10-09 (D17).** It was the storage archive of released sites, from which `deploy.ps1` deployed an earlier version. The image of every released version stays in the registry, and `deploy.ps1` deploys any of them by its tag from S0 on | Nothing to build. What was its proof is still worth running once two versions are released: a deliberately failed verification in tdd reverts to the previous version, and "Verify revert" passes | none |
 | **S4 Title, character select, creation intro** | B0-B7, the reveal mechanic, skip after a first completion | Cards 1:1 to 2:3 in order; the player reveals and never "creates"; works with keys and touch; reduced motion respected | M |
 | **S5 Adam path before the woman** | B8-B13: formation, garden reveal, dress and keep, the command, naming the animals by kind (24 animals, 72 kind-names) | The command goes to the man with 2:16-17; the label "The man" becomes "Adam" at 2:19; the kind-names chosen persist in the journal and the save; kind-name validator rules pass; no fish and no serpent among the animals | L |
 | **S6 The woman made; Eve path before the garden life** | B14-B16 on both paths; the recall card; learning the names | Eve path: the command shown as "before you were made" and received as a recall card after 2:25, with nothing added; Adam NPC speaks 2:23; M1 coverage passes for the sleep pose and every cutscene shot | M |
@@ -1293,23 +1388,16 @@ verified.
 | **S10 Expulsion and close** | B27-B31: Eve named, coats of skins (covering `Coats`), the walk east, the Cherubims and the sword, the closing card (D2), journal summary, play again | The label changes at 3:20 and not before; the ending is reachable from every path; the closing card quotes 3:21 and 3:15 exactly | M |
 | **S11 Final art and audio, accessibility, offline** | Final generated art and music through the pipeline, reviewed; high-contrast mode; the service worker with "Update" between scenes; the credits page | The payload budget is still met; axe finds no serious or critical issue; the game plays offline after one visit; updates are offered and applied between scenes only; every asset has an approved provenance | L |
 
-Order: S0, S1, S2, S2b, S3, S4 and so on to S11. S2b must land before any final character art. S3 can move anywhere
-after S0 but should land before prod receives frequent releases. Independent slices (S2b beside S3, or S3 beside S4)
-may run in parallel, each in its own worktree.
+Order: S0, S1, S2, S2b, S4 and so on to S11 (*changed 2026-10-09, D17:* S3 is dropped). S2b must land before any
+final character art. Independent slices (S2b beside S4, for example) may run in parallel, each in its own worktree.
 
 ---
 
 ## 11. Open questions
 
-1. **Free Static Web Apps in the shared subscription.** adameve needs two Free sites. The subscription met its limit
-   of 10 on 2026-10-07, and the dashboards of both fleets draw on the same limit. If S0 finds fewer than two places
-   free, which should happen?
-   - The owners of unused sites free them (their decision, not adameve's).
-   - prod moves to the Standard plan (about $9 a month).
-   - adameve moves to another subscription.
-
-   Also: if Azure counts the 100 GB a month for the whole subscription and not for each site, the dashboards share
-   it too.
+1. **Free Static Web Apps in the shared subscription.** **Closed 2026-10-09 (D17):** the game runs on Container
+   Apps express and needs no Free site. The question was what should happen if the subscription, which met its limit
+   of 10 Free sites on 2026-10-07, had fewer than two places free.
 2. **Which generators.** The pipeline is tool-agnostic, but the first asset needs a tool. Which image and audio
    generators, and under whose account, may be used? Their terms (recorded in `assets/tool-terms/`) decide what the
    game may publish.
@@ -1317,10 +1405,15 @@ may run in parallel, each in its own worktree.
    world. In the United Kingdom the Crown's letters patent still apply to printing it. The proposal: the game quotes
    it freely, with a `NOTICE` that states this, since it is a free web game that quotes three chapters. Is that
    acceptable, or do you want a different wording or a review?
+4. **The hourly health report and the cold start** (added 2026-10-09 with D17). Both apps scale to zero. The
+   system's hourly health report asks every recorded node, which starts a stopped app once an hour in each
+   environment. Leave it on (the default; the dashboard's history stays complete), or turn it off as jpcom did
+   (`"healthReport": false` in the nodes file `verify.ps1` writes)? And should prod keep one replica running, so
+   that no player waits for a cold start? `deploy/settings.json` holds both environments at 0 to 1 replica.
 
 ---
 
-## 12. Decided by Jeffrey, 2026-10-08
+## 12. Decided by Jeffrey, 2026-10-08 (D17: 2026-10-09)
 
 | # | Decision | Where it is applied |
 |---|---|---|
@@ -1333,10 +1426,11 @@ may run in parallel, each in its own worktree.
 | D7 | **Appearance:** Adam and the woman have very light brown skin, like people of Greek or Mediterranean ancestry, and dark hair | 5.2, 5.5 (palette) |
 | D8 | **Game-written text:** the optional "Think about it" prompts and the "Look closer" note on 3:3 and 2:17 are included. **Jeffrey is the reviewer** of narration, speech, glossary, kind-names and every generated asset | 1, 2.1, 3.2, 4, 5.5 |
 | D9 | **Naming the animals:** the player names the **kind** of each animal (for example "swine", "canine", "pachyderm"), choosing from three kind-names per animal, each with its meaning. No free typing | 3.5, 7.4, 8 |
-| D10 | **Hosting:** Azure Static Web Apps Free, one site per environment (`swa-adameve-<env>-web`), deployable hosting `own`. `deploy.ps1` applies the app's Bicep and uploads with a deployment token fetched at run time; the health, version and build paths are static files; headers, CORS and fallback come from `staticwebapp.config.json`. GitHub Pages and App Service Free were compared (7.6) | 0, 6, 7.6, 8, 9 |
+| D10 | **Hosting:** Azure Static Web Apps Free, one site per environment (`swa-adameve-<env>-web`), deployable hosting `own`. `deploy.ps1` applies the app's Bicep and uploads with a deployment token fetched at run time; the health, version and build paths are static files; headers, CORS and fallback come from `staticwebapp.config.json`. GitHub Pages and App Service Free were compared (7.6). **Replaced by D17 on 2026-10-09** | 0, 6, 7.6, 8, 9 |
 | D11 | **Organization, repository and fleet:** `clearmeasure-aisf-sample-apps/adameve-app`, branch `master`, **public** (the text is public domain, it is a demo, and public repositories get GitHub's free security features), licence **MIT** for code and project-made content and assets, with a `NOTICE` for the KJV text (open question 3). The same Azure subscription and `https://clearmeasure.octopus.app`. A new, separate fleet with its own platform repository. Owner session: "Adam and woman in the garden of Eden". The title is "Adam and woman in the garden of Eden" | Title, 9.3, 9.4 |
-| D12 | **Rollback:** a storage account in each environment archives every released site, so "Revert deployable" can put an earlier version back. The Octopus feed alone does not suffice (9.2) | 9.2, S3 |
+| D12 | **Rollback:** a storage account in each environment archives every released site, so "Revert deployable" can put an earlier version back. The Octopus feed alone does not suffice (9.2). **Not needed since D17, 2026-10-09** | 9.2, S3 |
 | D13 | **Art and music are generated**: art, sprites, backgrounds, the fruit and audio. Tool-agnostic specs in the repository, one style sheet, provenance and licence for each asset, a review for modesty and faithfulness before commit, and size budgets under the 3.0 MB first-load gate | 5.4, 5.5, S2b, S11 |
 | D14 | **The tree of life** is shown but is not interactive | 3.4 |
 | D15 | **"Neither shall ye touch it" (3:3):** touching the tree does nothing; only the optional "Look closer" note points at the difference from 2:17 | 3.2 |
 | D16 | **Offline play (PWA)** is in version 1, slice S11 | 6, S11 |
+| D17 | **2026-10-09, Jeffrey: Azure Container Apps express in the system's environment, replacing D10's Static Web Apps Free; D12's storage archive is not needed because every released image stays in the registry.** One container app per environment (`ca-adameve-tdd-web`, `ca-adameve-prod-web`) in `cae-adameve` (resource group `rg-adameve-apps`, Central US), deployable hosting still `own`. A small outermost project, `AdamEve.Host`, serves the published client and answers the health, version and build paths; the Build makes its image and the release pushes it | 0, 7.5, 7.6, 8, 9.1, 9.2, 9.4, S0, S3, question 1 |

@@ -4,9 +4,6 @@ obj/
 build/
 TestResults/
 
-# Tools of the build
-node_modules/
-
 # Editors
 .vs/
 .vscode/
