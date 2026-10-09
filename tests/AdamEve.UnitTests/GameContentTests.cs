@@ -32,6 +32,19 @@ public class GameContentTests
     }
 
     [Test]
+    public void LoadEmbedded_TheShippedContent_ShouldFindEveryVerseTheDaysOfCreationShowAsTheParserReadsIt()
+    {
+        var content = GameContent.LoadEmbedded().Content.ShouldNotBeNull();
+        var parsed = AdamEve.Content.Scripture.KjvParser.Parse(CanonicalFile.Bytes());
+
+        var cards = AdamEve.Core.Story.CreationStory.Cards.Select(content.Scripture.Find).ToList();
+
+        cards.ShouldBe(parsed.Verses.Take(34));
+        cards.ShouldAllBe(verse => verse.Text == CanonicalFile.VerseTextFromTheFile(verse.Ref));
+        cards[^1].Ref.ShouldBe(new AdamEve.Content.Scripture.VerseRef(2, 3));
+    }
+
+    [Test]
     public void Load_ACanonicalTextWithOneLetterChanged_ShouldBeRefused()
     {
         var bytes = CanonicalFile.Bytes();

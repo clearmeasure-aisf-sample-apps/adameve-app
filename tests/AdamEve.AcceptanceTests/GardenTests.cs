@@ -145,15 +145,17 @@ public class GardenTests : PlaywrightTest
     [TestCase("Desktop Chrome", "chromium")]
     [TestCase("Pixel 7", "chromium")]
     [TestCase("iPhone 13", "webkit")]
-    public async Task Open_TheGardenFromTheTitlePage_ShouldShowThePlayerInTheCentralGladeWithTheVerdictOk(string device, string engine)
+    public async Task Continue_FromTheTitlePageWithASavedGameInTheGarden_ShouldShowThePlayerInTheCentralGladeWithTheVerdictOk(string device, string engine)
     {
         var spawn = Garden().Map.Spawn("adam");
         await using var guarded = await GuardedPage.OpenAsync(Playwright, device, engine);
         var page = guarded.Page;
+        await page.GotoAsync(Site.BaseAddress + "404.html");
+        await page.EvaluateAsync("entry => localStorage.setItem(entry[0], entry[1])", new[] { SaveCodec.SaveKey, SaveAt(spawn.X, spawn.Y) });
         await page.GotoAsync(Site.BaseAddress);
-        await Expect(page.GetByTestId("status")).ToHaveTextAsync("Coming soon");
+        await Expect(page.GetByTestId("continue")).ToHaveTextAsync(GameText.Continue);
 
-        await page.GetByTestId("garden-link").ClickAsync();
+        await page.GetByTestId("continue").ClickAsync();
 
         var game = page.GetByTestId("game");
         await Expect(game).ToHaveAttributeAsync("data-ready", "true", new() { Timeout = 30_000 });

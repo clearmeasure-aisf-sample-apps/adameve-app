@@ -27,6 +27,10 @@ public static class LocalStorageSaveStore
         return result;
     }
 
+    /// <summary>Reads the saved game and leaves the storage as it is, also when the saved game cannot be read.</summary>
+    /// <param name="map">The map of the garden.</param>
+    public static SaveReadResult Peek(TileMap map) => SaveCodec.Read(Read(SaveCodec.SaveKey), map);
+
     /// <summary>Keeps the saved game.</summary>
     /// <param name="save">The saved game.</param>
     public static void Save(SaveGame save) => Write(SaveCodec.SaveKey, SaveCodec.Write(save));

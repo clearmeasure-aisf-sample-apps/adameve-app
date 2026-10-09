@@ -54,6 +54,35 @@ public class GameTextTests
     }
 
     [Test]
+    public void Labels_GameText_ShouldNeverSayThatAnyoneCreates()
+    {
+        // The player reveals what God made. No label says or implies that the player creates or makes anything.
+        string[] forbidden = ["creat", "make", "made", "build", "form "];
+
+        foreach (var label in Labels())
+        {
+            forbidden.ShouldAllBe(word => !label.Contains(word, StringComparison.OrdinalIgnoreCase), label);
+        }
+    }
+
+    [Test]
+    public void Labels_TheControlsOfTheDaysOfCreation_ShouldBeRevealAndTurnThePageAndSkip()
+    {
+        GameText.Reveal.ShouldBe("Reveal");
+        GameText.TurnThePage.ShouldBe("Turn the page");
+        GameText.Skip.ShouldBe("Skip");
+    }
+
+    [Test]
+    public void Labels_TheCharacterSelect_ShouldSayAdamAndTheWomanNamedEveInGenesis3_20()
+    {
+        GameText.CharacterName(AdamEve.Core.Saves.PlayerCharacter.Adam).ShouldBe("Adam");
+        GameText.CharacterName(AdamEve.Core.Saves.PlayerCharacter.Woman).ShouldBe("The woman");
+        GameText.CharacterWomanNote.ShouldBe("named Eve in " + GameText.Citation(new VerseRef(3, 20)));
+        GameText.SpeakerName(AdamEve.Core.Story.StorySpeaker.God).ShouldBe("God");
+    }
+
+    [Test]
     public void Labels_GameText_ShouldHoldNoVerseOfScripture()
     {
         var verses = KjvParser.Parse(CanonicalFile.Bytes()).Verses;

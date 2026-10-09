@@ -14,6 +14,9 @@ public static partial class GameInterop
 
     private static bool imported;
 
+    /// <summary>Whether the modules of the game are loaded: before that, nothing of them can be called.</summary>
+    internal static bool Imported => imported;
+
     /// <summary>What a frame runs: the session that is playing, or nothing.</summary>
     internal static Action<double>? OnFrame { get; set; }
 

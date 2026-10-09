@@ -32,6 +32,15 @@ public sealed class GameSession(ContentLoadResult content)
     /// <summary>Whether the saved game could not be read and the player has not put the notice away.</summary>
     public bool SaveUnreadable { get; private set; }
 
+    /// <summary>The class of the page that sets the size of the game's text.</summary>
+    public string TextClass => Settings.TextSize switch
+    {
+        TextSize.S => "text-s",
+        TextSize.L => "text-l",
+        TextSize.XL => "text-xl",
+        _ => "text-m",
+    };
+
     /// <summary>The id of the region the player is in, or null.</summary>
     public string? RegionId => game?.RegionId;
 
@@ -115,7 +124,11 @@ public sealed class GameSession(ContentLoadResult content)
     public void SetSound(bool enabled)
     {
         Keep(Settings with { Sound = enabled });
-        JsAudio.SetEnabled(enabled);
+        if (GameInterop.Imported)
+        {
+            // At the title the sound module is not loaded yet: the garden sets it from the kept setting when it starts.
+            JsAudio.SetEnabled(enabled);
+        }
     }
 
     private static double[] GroundNumbers()

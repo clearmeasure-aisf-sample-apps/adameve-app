@@ -1,14 +1,17 @@
 @page "/garden"
 @using AdamEve.Client.Game
 @using AdamEve.Core.Saves
+@using AdamEve.Core.Story
 @implements IDisposable
 @inject GameSession Session
+@inject ContentLoadResult ContentCheck
+@inject NavigationManager Navigation
 
 <PageTitle>@GameInfo.Title</PageTitle>
 
 @* The game root. The canvas module writes the data- attributes the tests read (player tile, facing, the M1
    verdict). All text is here, in the page, over the canvas: the canvas holds no words. *@
-<div id="game" class="game @TextClass" data-testid="game">
+<div id="game" class="game @Session.TextClass" data-testid="game">
     <h1 class="visually-hidden">@GameInfo.Title</h1>
 
     <div class="game-play">
@@ -29,21 +32,7 @@
     <section class="game-panel @(Session.MenuOpen ? null : "game-panel-empty")" data-game-panel data-testid="settings" aria-live="polite">
         @if (Session.MenuOpen)
         {
-            <h2 class="game-panel-title">@GameText.Settings</h2>
-            <fieldset class="game-setting">
-                <legend>@GameText.TextSize</legend>
-                @foreach (var (size, label) in Sizes)
-                {
-                    <label class="game-choice">
-                        <input type="radio" name="text-size" data-testid="text-size-@size" checked="@(Session.Settings.TextSize == size)" @onchange="() => Session.SetTextSize(size)" />
-                        <span>@label</span>
-                    </label>
-                }
-            </fieldset>
-            <label class="game-choice game-setting">
-                <input type="checkbox" data-testid="sound" checked="@Session.Settings.Sound" @onchange="SoundChanged" />
-                <span>@GameText.Sound</span>
-            </label>
+            <SettingsControls />
             <p class="game-panel-links">
                 <a href="" data-testid="title-link">@GameText.BackToTitle</a>
                 <button type="button" class="game-button" data-testid="settings-close" @onclick="Session.ToggleMenu">@GameText.CloseDefinition</button>
@@ -64,31 +53,24 @@
 </div>
 
 @code {
-    private static readonly (TextSize Size, string Label)[] Sizes =
-    [
-        (TextSize.S, GameText.TextSizeSmall),
-        (TextSize.M, GameText.TextSizeMedium),
-        (TextSize.L, GameText.TextSizeLarge),
-        (TextSize.XL, GameText.TextSizeExtraLarge),
-    ];
-
-    private string TextClass => Session.Settings.TextSize switch
-    {
-        TextSize.S => "text-s",
-        TextSize.L => "text-l",
-        TextSize.XL => "text-xl",
-        _ => "text-m",
-    };
+    private bool inCreation;
 
     protected override void OnInitialized()
     {
         Session.LoadSettings();
         Session.Changed += Render;
+
+        // A saved game that stands in the days of creation goes on there, not in the garden.
+        if (ContentCheck.IsLoaded && LocalStorageSaveStore.Peek(ContentCheck.Content.Garden.Map).Save is { Chapter: StoryChapter.Creation })
+        {
+            inCreation = true;
+            Navigation.NavigateTo("creation", replace: true);
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender)
+        if (firstRender && !inCreation)
         {
             await Session.StartAsync();
         }
@@ -101,6 +83,4 @@
     }
 
     private void Render() => _ = InvokeAsync(StateHasChanged);
-
-    private void SoundChanged(ChangeEventArgs change) => Session.SetSound(change.Value is true);
 }

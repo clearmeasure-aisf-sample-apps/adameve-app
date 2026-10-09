@@ -6,7 +6,7 @@ game-written text. Jeffrey Palermo reviews game-written text before it ships (de
 
 ## Game-written text for review
 
-This is the whole list as of slice S2. A unit test (`GameTextTests`) fails when a glossary entry or a
+This is the whole list as of slice S4. A unit test (`GameTextTests`) fails when a glossary entry or a
 label is not on it. Review status: **not yet reviewed**.
 
 ### Glossary (`glossary.json`)
@@ -41,15 +41,22 @@ Not in the glossary yet, because the design's list gives them no definition: *on
 | Reader, the link to the title page | Back to the title |
 | Reader, the button that puts a definition away; garden, the button that closes the settings or a notice | Close |
 | Any page, when the start-up content check fails | The game's text could not be loaded |
-| Title page, the link to the garden | Walk in the garden |
+| Title, the character select: the man (the wording of the design, decision D3) | Adam |
+| Title, the character select: the woman (the wording of the design, decision D3) | The woman |
+| Title, the character select: the small line beneath "The woman" (the wording of the design, decision D3) | named Eve in Genesis 3:20 |
+| Title, the link that goes on with the saved game | Continue |
+| Days of creation, the speaker label of a Scripture card on which God speaks (the wording of the design, section 1) | God |
+| Days of creation, the control of the one gesture of a day | Reveal |
+| Days of creation, the control that shows the next Scripture card | Turn the page |
+| Days of creation, the control that leaves them, offered after a first completion | Skip |
 | Garden, the menu button | Menu |
-| Garden, the heading of the settings | Settings |
-| Garden, the setting of the text size | Text size |
-| Garden, the text sizes (design, section 1) | S |
+| Title and garden, the heading of the settings | Settings |
+| Title and garden, the setting of the text size | Text size |
+| Title and garden, the text sizes (design, section 1) | S |
 | | M |
 | | L |
 | | XL |
-| Garden, the setting that turns sound on and off | Sound |
+| Title and garden, the setting that turns sound on and off | Sound |
 | Garden, the D-pad buttons, read by a screen reader | Up |
 | | Down |
 | | Left |
@@ -58,6 +65,16 @@ Not in the glossary yet, because the design's list gives them no definition: *on
 | | Spring of Eden |
 | | Pison Meadows |
 | Garden, when the saved game cannot be read (the wording of the design, section 7.3) | Your saved game could not be read. Start again? |
+
+## The days of creation (slice S4)
+
+The days of creation add no narration: every word a player reads there is a Scripture card (Genesis 1:1 to 2:3, one
+verse each, with its reference), the label "God" on the cards on which he speaks, and the three controls above.
+Which verses a day shows, where the player's one gesture of a day falls and on which cards God speaks are
+references in `src/AdamEve.Core/Story/CreationStory.cs`, never text. The picture of each day is placeholder art
+made by code (`CreationPicture`): flat ellipses and rectangles, no image file. God is never drawn as a figure: his
+presence is a light, shown while his voice speaks. The two figures of light of Genesis 1:26 to 1:28 are the rigs
+below, in one pale colour, far away, judged by the same modesty check.
 
 ## The garden (slice S2)
 

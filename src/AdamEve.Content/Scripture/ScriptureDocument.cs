@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
+using AdamEve.Core.Story;
 
 namespace AdamEve.Content.Scripture;
 
@@ -33,6 +34,11 @@ public sealed class ScriptureDocument
     public Verse Find(VerseRef reference) => byRef.TryGetValue(reference, out var verse)
         ? verse
         : throw new KeyNotFoundException($"The canonical text has no verse {reference}.");
+
+    /// <summary>The verse a beat of the story names.</summary>
+    /// <param name="reference">The reference, as the story holds it.</param>
+    /// <exception cref="KeyNotFoundException">The text has no such verse.</exception>
+    public Verse Find(ScriptureRef reference) => Find(new VerseRef(reference.Chapter, reference.Verse));
 
     /// <summary>Finds the verse with a reference.</summary>
     /// <param name="reference">The reference.</param>

@@ -1,7 +1,12 @@
+@using AdamEve.Core.Story
 @* Scripture: a parchment card in a serif face that always carries its reference. It shows nothing but the parsed
-   text of the verse and the reference; a glossary word is that same text, underlined, and its definition opens
-   outside the card. *@
+   text of the verse and the reference, and, where God speaks in the verse, the speaker label (design, section 1); a
+   glossary word is that same text, underlined, and its definition opens outside the card. *@
 <article class="scripture-card" data-testid="scripture-card" data-ref="@Verse.Ref">
+    @if (Speaker is { } speaker)
+    {
+        <p class="scripture-speaker" data-testid="scripture-speaker">@GameText.SpeakerName(speaker)</p>
+    }
     <p class="scripture-text" data-testid="scripture-text">@Text</p>
     <p class="scripture-reference" data-testid="scripture-reference">@GameText.Citation(Verse.Ref)</p>
 </article>
@@ -14,6 +19,10 @@
     /// <summary>The glossary whose words are underlined. Without one the card shows plain text.</summary>
     [Parameter]
     public Glossary? Glossary { get; set; }
+
+    /// <summary>Who speaks in the verse: the speaker label of the card. Null for no label.</summary>
+    [Parameter]
+    public StorySpeaker? Speaker { get; set; }
 
     /// <summary>A glossary word was tapped, or chosen with Enter.</summary>
     [Parameter]
@@ -36,7 +45,10 @@
             builder.AddAttribute(3, "class", "glossary-word");
             builder.AddAttribute(4, "data-testid", "glossary-word");
             builder.AddAttribute(5, "onclick", EventCallback.Factory.Create(this, () => OnGlossaryWord.InvokeAsync(entry)));
-            builder.AddContent(6, segment.Text);
+            // A tap on a word, or Enter on it, is for the word alone: it does not also turn the page of a card.
+            builder.AddEventStopPropagationAttribute(6, "onclick", true);
+            builder.AddEventStopPropagationAttribute(7, "onkeydown", true);
+            builder.AddContent(8, segment.Text);
             builder.CloseElement();
         }
     };

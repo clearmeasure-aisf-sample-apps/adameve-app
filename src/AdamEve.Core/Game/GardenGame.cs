@@ -43,6 +43,7 @@ public sealed class GardenGame
     private readonly Walker walker;
     private readonly int player;
     private readonly int zonesPerRig;
+    private readonly SaveGame resumed;
     private Camera camera;
     private int pendingPressed;
     private bool pendingTapped;
@@ -64,6 +65,7 @@ public sealed class GardenGame
         ArgumentNullException.ThrowIfNull(woman);
         ArgumentNullException.ThrowIfNull(animations);
         this.map = map;
+        resumed = save ?? new SaveGame();
         idle = animations.First(animation => animation.Id == "idle");
         walk = animations.First(animation => animation.Id == "walk");
         Atlas = new AtlasCatalog([adam, woman]);
@@ -132,8 +134,8 @@ public sealed class GardenGame
     /// <summary>How many frames so far had a verdict other than "ok".</summary>
     public long ExposedFrames { get; private set; }
 
-    /// <summary>The game as it is saved.</summary>
-    public SaveGame ToSave() => new() { Character = Character, TileX = walker.Tile.X, TileY = walker.Tile.Y, Facing = walker.Facing };
+    /// <summary>The game as it is saved: where the player stands, and the story as the resumed game held it.</summary>
+    public SaveGame ToSave() => resumed with { Character = Character, TileX = walker.Tile.X, TileY = walker.Tile.Y, Facing = walker.Facing };
 
     /// <summary>
     /// One frame: reads the input block, advances the world in fixed steps, and writes the render list with the

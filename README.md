@@ -4,14 +4,21 @@ A browser role-playing game for readers aged about 11 to 14. It tells Genesis 1 
 player is Adam or the woman, watches the days of creation, lives in the garden of Eden and is tempted. The design,
 with every decision, is [docs/design.md](docs/design.md).
 
-**State: slice S2, "Walk the garden".** The title page says "Coming soon" and links to the garden and to a reader
-that shows the 80 verses of Genesis 1 to 3, each on a Scripture card with its reference. In the garden the player
-walks Adam (or, from a saved game, the woman) through the Central Glade, the Spring of Eden and the Pison Meadows
-with the arrow keys, WASD, an on-screen D-pad or a tap on a tile; the position is saved in the browser and resumed.
-There is no story yet. The game-written text is listed for review in [content/README.md](content/README.md). The
-slices that follow are in section 10 of the design.
+**State: slice S4, "Title, character select, creation intro".** The title is the title screen of the design
+(beat B0): the player chooses Adam or the woman, the size of the text and the sound, and can always open the reader,
+which shows the 80 verses of Genesis 1 to 3, each on a Scripture card with its reference. A new game plays the seven
+days of creation (beats B1 to B7): Genesis 1:1 to 2:3, one verse on each card, in order. The player turns the page
+and, once in each of the first six days, makes one gesture that reveals what the next verse tells; the player
+reveals what God made and makes nothing. The seventh day has no gesture. After a first completion the days can be
+skipped. The story machine is `AdamEve.Core.Story.StoryMachine`. After the seventh day the player walks the chosen
+character through the Central Glade, the Spring of Eden and the Pison Meadows (slice S2) with the arrow keys, WASD,
+an on-screen D-pad or a tap on a tile; the game is saved in the browser and resumed. The story after Genesis 2:3 is
+not built yet. The game-written text is listed for review in [content/README.md](content/README.md). The slices
+that follow are in section 10 of the design.
 
-**Placeholder art.** Everything the garden draws is made by code: flat colours, ellipses and rectangles. No image,
+**Placeholder art.** Everything the game draws is made by code: flat colours, ellipses and rectangles, on the
+canvas in the garden and as shapes of the page at the title and in the days of creation. God is never drawn as a
+figure: his presence is a warm light, shown while his voice speaks on a Scripture card. No image,
 sound or font file was generated, downloaded or added, and the sound setting has nothing to play yet. The figures
 of Adam and the woman are abstract cut-out rigs with companion foliage bound to the hip and, for the woman, hair
 over the chest (design, sections 1 and 5.3).
@@ -21,12 +28,14 @@ frame of every animation of both rigs, in all eight facings and all three coveri
 pixel of every concealment zone to be covered. The running game makes the same check for each character in every
 frame it draws and writes the verdict on the game root (`data-concealment`); a frame that is not concealed gets the
 default foliage cluster drawn in front of the character and counts as a failure, which the full-system tests refuse.
+The character select and the two far figures of light of the sixth day are drawn from the same rigs and judged by
+the same check (`StillFigure`), with the verdict on the root of their page.
 
 ## What is here
 
 | Path | What |
 |---|---|
-| `src/AdamEve.Core` | The world rules: the map, walking, pathfinding, the camera, the rigs and the M1 check, the render list, the save model. No package reference, no I/O |
+| `src/AdamEve.Core` | The story machine (the title and the days of creation) and the world rules: the map, walking, pathfinding, the camera, the rigs and the M1 check, the render list, the save model. No package reference, no I/O |
 | `src/AdamEve.Content` | The canonical text, the game-written labels and the loaders of the content (glossary, map, rigs). References Core only |
 | `src/AdamEve.Client` | Blazor WebAssembly, standalone: the game, which runs in the browser. `wwwroot/js/render.js` is the one thin canvas module |
 | `src/AdamEve.Host` | ASP.NET Core, the outermost project: serves the published client and answers the health paths. No game code. Published, it is the content of the container image |
@@ -116,7 +125,8 @@ stops, and costs nothing while stopped. The next request starts it: that first a
 
 **The payload budget.** The empty shell used about 2.3 MB of the 3.0 MB: the .NET runtime, its libraries and one
 ICU data file, as brotli. With slice S2 (the garden, its two script modules and the JSON serializers of the save)
-the build measures 2.37 MB, which leaves about 0.6 MB.
+the build measured 2.37 MB; with slice S4 (the story machine, the title and the days of creation) it measures
+2.39 MB, which leaves about 0.6 MB.
 
 **Compression.** The publish step writes a brotli and a gzip file beside every file that compresses. The host
 answers with the one the browser accepts and compresses nothing itself, so the first load on the wire is the size
