@@ -1,0 +1,12 @@
+{
+  "port": 8080,
+  "pullIdentity": "id-{system}-{environment}-app",
+  "appEnvironment": {
+    "resourceGroup": "rg-{system}-apps",
+    "name": "cae-{system}"
+  },
+  "environments": {
+    "tdd": { "minReplicas": 0, "maxReplicas": 1 },
+    "prod": { "minReplicas": 0, "maxReplicas": 1 }
+  }
+}

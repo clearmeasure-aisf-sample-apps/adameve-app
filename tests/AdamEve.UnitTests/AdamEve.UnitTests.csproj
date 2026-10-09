@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/AdamEve.Content/AdamEve.Content.csproj" />
+    <ProjectReference Include="../../src/AdamEve.Host/AdamEve.Host.csproj" />
   </ItemGroup>
 
   <ItemGroup>
