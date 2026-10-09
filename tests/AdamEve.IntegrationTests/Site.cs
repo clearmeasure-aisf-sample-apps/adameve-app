@@ -1,8 +1,8 @@
 namespace AdamEve.IntegrationTests;
 
 /// <summary>
-/// The published site, served by the Static Web Apps CLI emulator. The build starts the emulator and names its
-/// address in ADAMEVE_BASE_URL (build.ps1, Start-SiteEmulator).
+/// The published site, served by the published host (src/AdamEve.Host) as a process. The build starts it and names
+/// its address in ADAMEVE_BASE_URL (build.ps1, Start-Site).
 /// </summary>
 internal static class Site
 {
@@ -14,7 +14,7 @@ internal static class Site
             if (string.IsNullOrWhiteSpace(address))
             {
                 throw new InvalidOperationException(
-                    "ADAMEVE_BASE_URL is not set. Run the private build (pwsh ./PrivateBuild.ps1): it publishes the site and serves it with the emulator.");
+                    "ADAMEVE_BASE_URL is not set. Run the private build (pwsh ./PrivateBuild.ps1): it publishes the site and starts its host.");
             }
 
             return new Uri(address.TrimEnd('/') + "/");

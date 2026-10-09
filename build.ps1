@@ -3,20 +3,23 @@
 <#
 .SYNOPSIS
     The steps of the build: Init, Analyze, Compile, UnitTests, Publish, PayloadBudget, StaticFiles,
-    IntegrationTests, AcceptanceTests, BuildFacts, DeployPackage; and Build, which runs them in that order.
+    IntegrationTests, AcceptanceTests, BuildFacts, ContainerImage, DeployPackage; and Build, which runs them in that
+    order.
 
 .DESCRIPTION
     Dot-sourced by PrivateBuild.ps1, which is the command to run. A step can be run alone after the ones before it:
         . ./build.ps1 ; Init ; Compile ; UnitTests
 
     What the build leaves behind:
-        build/publish/wwwroot    the site: the published client with _health/ (healthcheck.txt, alive.txt,
-                                 version.json, build-facts.json, files.json)
-        build/deploy-package     the package: deploy.ps1, verify.ps1, main.bicep, site.zip, version.txt
-        TestResults              trx files, coverage, the emulator's log, Playwright's traces
+        build/publish            the published host (src/AdamEve.Host) with the published client as its wwwroot,
+                                 files.json and build-facts.json: the content of the image, and what the tests ask
+        build/container-image    container-image.tar.gz: the image container-image:<version>, as "docker load" reads
+                                 it. The release pushes it to the system's registry
+        build/deploy-package     the package: deploy.ps1, verify.ps1, settings.json, infra/main.bicep
+        TestResults              trx files, coverage, the host's log, Playwright's traces
 
-    healthcheck.txt says "Pending" until every test has passed against the published site; only then does the build
-    write "Healthy" into it. A build that stops early cannot ship a site that says it is healthy.
+    The image is made after every test has passed against the very files it holds, and it carries what the tests
+    measured (build-facts.json). A build that stops early leaves no image to release.
 #>
 
 Set-StrictMode -Version Latest
@@ -24,24 +27,23 @@ $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
 
 . (Join-Path $PSScriptRoot 'BuildFunctions.ps1')
-Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 $script:baseDir = $PSScriptRoot
 $script:solution = Join-Path $baseDir 'AdamEve.slnx'
-$script:clientProject = Join-Path $baseDir 'src' 'AdamEve.Client'
+$script:hostProject = Join-Path $baseDir 'src' 'AdamEve.Host'
 $script:unitTestProject = Join-Path $baseDir 'tests' 'AdamEve.UnitTests'
 $script:integrationTestProject = Join-Path $baseDir 'tests' 'AdamEve.IntegrationTests'
 $script:acceptanceTestProject = Join-Path $baseDir 'tests' 'AdamEve.AcceptanceTests'
 $script:buildDir = Join-Path $baseDir 'build'
 $script:publishDir = Join-Path $buildDir 'publish'
 $script:siteDir = Join-Path $publishDir 'wwwroot'
-$script:healthDir = Join-Path $siteDir '_health'
+$script:imageDir = Join-Path $buildDir 'container-image'
 $script:packageDir = Join-Path $buildDir 'deploy-package'
 $script:testResultsDir = Join-Path $baseDir 'TestResults'
 $script:configuration = 'Release'
 $script:version = '1.0.0'
 $script:ranBy = 'private'
-$script:emulator = $null
+$script:site = $null
 
 # The first load of the game on a phone: 3.0 MB, measured over the brotli files the publish step writes.
 $script:payloadBudgetBytes = 3.0 * 1024 * 1024
@@ -50,8 +52,6 @@ $script:title = 'Adam and woman in the garden of Eden'
 function Init {
     Write-Step 'Init'
     Assert-Tool -Name 'dotnet' -Purpose 'the .NET 10 SDK compiles, tests and publishes the solution'
-    Assert-Tool -Name 'node' -Purpose 'Node.js 20 or later runs the Static Web Apps CLI emulator the tests ask'
-    Assert-Tool -Name 'npm' -Purpose 'npm installs the Static Web Apps CLI emulator'
     Assert-Tool -Name 'git' -Purpose 'the build facts count the files Git tracks'
     if (-not (Get-Module -ListAvailable -Name PSScriptAnalyzer)) {
         Stop-Build 'The module PSScriptAnalyzer is not installed: Install-Module PSScriptAnalyzer -Scope CurrentUser'
@@ -64,11 +64,6 @@ function Init {
 
     $env:DOTNET_NOLOGO = 'true'
     $env:DOTNET_CLI_TELEMETRY_OPTOUT = 'true'
-    if (-not (Test-Path -LiteralPath (Join-Path $baseDir 'node_modules' '.bin'))) {
-        Push-Location -LiteralPath $baseDir
-        try { npm ci --no-audit --no-fund }
-        finally { Pop-Location }
-    }
     dotnet restore $solution
     Write-Pass "tools found, build/ and TestResults/ empty, packages restored (version $version, run by the $ranBy build)"
 }
@@ -76,7 +71,7 @@ function Init {
 function Analyze {
     Write-Step 'Analyze'
     $files = @(Get-ChildItem -LiteralPath $baseDir -Recurse -File -Include '*.ps1' |
-            Where-Object { $_.FullName -notmatch '[\\/](node_modules|bin|obj|build|TestResults)[\\/]' })
+            Where-Object { $_.FullName -notmatch '[\\/](bin|obj|build|TestResults)[\\/]' })
     $settings = Join-Path $baseDir 'PSScriptAnalyzerSettings.psd1'
     $findings = @($files | ForEach-Object { Invoke-ScriptAnalyzer -Path $_.FullName -Settings $settings })
     foreach ($finding in $findings) {
@@ -84,6 +79,26 @@ function Analyze {
     }
     if ($findings.Count -gt 0) { Stop-Build "PSScriptAnalyzer: $($findings.Count) finding(s) in $($files.Count) scripts; a warning is an error" }
     Write-Pass "PSScriptAnalyzer: no finding in $($files.Count) scripts"
+
+    # The application's own infrastructure code must compile without a diagnostic before it is released. The Azure
+    # CLI brings Bicep; the integration build always has it.
+    $template = Join-Path $baseDir 'deploy' 'infra' 'main.bicep'
+    if (Get-Command az -ErrorAction SilentlyContinue) {
+        $PSNativeCommandUseErrorActionPreference = $false
+        $said = @(az bicep build --file $template --stdout 2>&1 | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] } | ForEach-Object { "$_" })
+        $code = $LASTEXITCODE
+        $PSNativeCommandUseErrorActionPreference = $true
+        $diagnostics = @($said | Where-Object { $_ -match ' : (Warning|Error) ' })
+        foreach ($line in $diagnostics) { Write-Host "  $line" }
+        if ($code -ne 0 -or $diagnostics.Count -gt 0) {
+            if ($diagnostics.Count -eq 0) { foreach ($line in $said) { Write-Host "  $line" } }
+            Stop-Build "deploy/infra/main.bicep does not compile without a diagnostic (exit code $code)"
+        }
+        Write-Pass 'deploy/infra/main.bicep compiles without a diagnostic'
+    }
+    else {
+        Write-Host 'SKIP deploy/infra/main.bicep is not compiled: the Azure CLI is not installed (the integration build has it)'
+    }
 }
 
 function Compile {
@@ -107,19 +122,21 @@ function UnitTests {
 
 function Publish {
     Write-Step 'Publish'
-    dotnet publish $clientProject --configuration $configuration --output $publishDir "-p:Version=$version"
-    foreach ($file in 'index.html', '404.html', 'staticwebapp.config.json') {
+    # The host's publish publishes the client too and takes its wwwroot (AdamEve.Host.csproj, target PublishClient).
+    dotnet publish $hostProject --configuration $configuration --output $publishDir "-p:Version=$version"
+    foreach ($file in 'index.html', '404.html') {
         if (-not (Test-Path -LiteralPath (Join-Path $siteDir $file))) { Stop-Build "The published site has no $file" }
     }
-    Write-Pass "the site is published to $([System.IO.Path]::GetRelativePath($baseDir, $siteDir))"
+    if (-not (Test-Path -LiteralPath (Join-Path $publishDir 'AdamEve.Host.dll'))) { Stop-Build 'The published host has no AdamEve.Host.dll' }
+    Write-Pass "the host is published to $([System.IO.Path]::GetRelativePath($baseDir, $publishDir)), the client is its wwwroot"
 }
 
 function PayloadBudget {
     # What a first visit downloads: every file of the site but the ones a first visit never asks for, each at the
-    # size of its brotli file where the publish step wrote one. Of the three ICU data files the runtime loads one,
+    # size of its brotli file where the publish step wrote one (the host answers with that file). Of the three ICU data files the runtime loads one,
     # by the browser's language: the largest counts.
     Write-Step 'PayloadBudget'
-    $neverAsked = '^(404\.html|staticwebapp\.config\.json|_health/.*)$'
+    $neverAsked = '^404\.html$'
     $total = 0L
     $largestIcu = 0L
     $count = 0
@@ -145,71 +162,69 @@ function PayloadBudget {
 }
 
 function StaticFiles {
-    # The site as Azure Static Web Apps gets it: without the compressed copies (the service compresses what it
-    # serves and never reads them), with the health files, and with a fingerprint in the name of every file the
-    # configuration lets a browser keep for a year.
+    # What the host is to serve, checked before anything asks it: a fingerprint in the name of every file a browser
+    # may keep for a year, the title, the import map; and files.json, the list of every file with its size and
+    # SHA-256, which the tests and verify.ps1 compare the answers with.
     Write-Step 'StaticFiles'
-    Get-ChildItem -LiteralPath $siteDir -Recurse -File | Where-Object { $_.Extension -in '.br', '.gz' } | Remove-Item -Force
-
-    $config = Get-Content -LiteralPath (Join-Path $siteDir 'staticwebapp.config.json') -Raw | ConvertFrom-Json
-    $immutable = @($config.routes | Where-Object { $_.PSObject.Properties['headers'] -and "$($_.headers.'Cache-Control')" -match 'immutable' } | ForEach-Object { $_.route })
+    $immutable = '_framework', 'assets'
     $unmarked = [System.Collections.Generic.List[string]]::new()
-    foreach ($route in $immutable) {
-        $folder = Join-Path $siteDir ($route -replace '^/', '' -replace '/\*$', '')
-        if (-not (Test-Path -LiteralPath $folder)) { continue }
-        foreach ($file in Get-ChildItem -LiteralPath $folder -Recurse -File) {
-            if ($file.Name -cnotmatch '\.[a-z0-9]{10}\.[A-Za-z0-9]+$') { $unmarked.Add([System.IO.Path]::GetRelativePath($siteDir, $file.FullName)) }
+    foreach ($folder in $immutable) {
+        $path = Join-Path $siteDir $folder
+        if (-not (Test-Path -LiteralPath $path)) { continue }
+        foreach ($file in Get-ChildItem -LiteralPath $path -Recurse -File) {
+            $name = $file.Name -replace '\.(br|gz)$', ''
+            if ($name -cnotmatch '\.[a-z0-9]{10}\.[A-Za-z0-9]+$') { $unmarked.Add([System.IO.Path]::GetRelativePath($siteDir, $file.FullName)) }
         }
     }
     if ($unmarked.Count -gt 0) {
         Stop-Build "Served as immutable without a fingerprint in the name: $($unmarked -join ', ')"
     }
-    Write-Pass "every file under $($immutable -join ', ') has a fingerprint in its name"
+    Write-Pass "every file under $(($immutable | ForEach-Object { "/$_/" }) -join ', ') has a fingerprint in its name"
 
     $index = Get-Content -LiteralPath (Join-Path $siteDir 'index.html') -Raw
     if ($index -notmatch [regex]::Escape("<title>$title</title>")) { Stop-Build "index.html does not have the title `"$title`"" }
 
     # The publish step writes the import map into index.html: the fingerprinted name of every script of the runtime.
     # It is an inline script, which the content security policy refuses (script-src 'self'), and without it the
-    # runtime does not start. The policy of the published site therefore names this one import map by its SHA-256:
-    # no other inline script runs. A browser hashes the text with its line ends as LF.
+    # runtime does not start. The host names this one import map by its SHA-256 in the policy it sends
+    # (src/AdamEve.Host/ContentSecurityPolicy.cs): no other inline script runs. The integration tests compare the
+    # header with the page, and the full-system tests fail on any error a browser reports.
     $importMap = [regex]::Match($index, '(?s)<script type="importmap">(.*?)</script>')
     if ($importMap.Success -and $importMap.Groups[1].Value.Trim()) {
-        $text = $importMap.Groups[1].Value.Replace("`r`n", "`n")
-        $hash = [System.Convert]::ToBase64String([System.Security.Cryptography.SHA256]::HashData([System.Text.Encoding]::UTF8.GetBytes($text)))
-        $configPath = Join-Path $siteDir 'staticwebapp.config.json'
-        $configText = Get-Content -LiteralPath $configPath -Raw
-        $scriptSource = "script-src 'self' 'wasm-unsafe-eval'"
-        if (-not $configText.Contains("$scriptSource;")) { Stop-Build "staticwebapp.config.json has no `"$scriptSource;`" to add the import map's hash to" }
-        Write-TextFile -Path $configPath -Text $configText.Replace("$scriptSource;", "$scriptSource 'sha256-$hash';")
-        Write-Pass "the content security policy allows the import map of index.html by its hash, and no other inline script"
+        Write-Pass 'index.html has its import map: the host allows it by its hash, and no other inline script'
     }
     else {
-        Write-Host 'SKIP index.html has no import map: the content security policy stays as written'
+        Write-Host 'SKIP index.html has no import map: the content security policy allows no inline script at all'
     }
 
-    New-Item -ItemType Directory -Path $healthDir -Force | Out-Null
-    Write-TextFile -Path (Join-Path $healthDir 'healthcheck.txt') -Text 'Pending'
-    Write-TextFile -Path (Join-Path $healthDir 'alive.txt') -Text 'alive'
-    Write-TextFile -Path (Join-Path $healthDir 'version.json') -Text (@{ version = $version } | ConvertTo-Json -Compress)
-    # A placeholder until BuildFacts: the tests ask /_build before the facts can count them.
-    Write-TextFile -Path (Join-Path $healthDir 'build-facts.json') -Text (@{ version = $version } | ConvertTo-Json -Compress)
-    Write-Pass 'the health files are written; healthcheck.txt says Pending until every test has passed'
+    $files = @(Get-ChildItem -LiteralPath $siteDir -Recurse -File |
+            Where-Object { $_.Extension -notin '.br', '.gz' } |
+            Sort-Object -Property FullName |
+            ForEach-Object {
+                [ordered]@{
+                    path   = [System.IO.Path]::GetRelativePath($siteDir, $_.FullName).Replace('\', '/')
+                    size   = $_.Length
+                    sha256 = Get-FileSha256 -Path $_.FullName
+                }
+            })
+    Write-TextFile -Path (Join-Path $publishDir 'files.json') -Text ((@{ version = $version; files = $files } | ConvertTo-Json -Depth 4) + "`n")
+    Write-Pass "files.json lists $($files.Count) files"
 }
 
 function Start-Site {
-    # The emulator, once for the integration tests and the full-system tests.
-    if ($null -ne $script:emulator) { return }
-    $script:emulator = Start-SiteEmulator -SitePath $siteDir -RepositoryRoot $baseDir -LogPath (Join-Path $testResultsDir 'emulator.log')
-    $env:ADAMEVE_BASE_URL = $script:emulator.Address
+    # The published host as a process, once for the integration tests and the full-system tests: the same files the
+    # image gets, served by the same code.
+    if ($null -ne $script:site) { return }
+    $script:site = Start-SiteHost -PublishPath $publishDir -LogPath (Join-Path $testResultsDir 'host.log')
+    $env:ADAMEVE_BASE_URL = $script:site.Address
     $env:ADAMEVE_VERSION = $version
-    Write-Host "  the emulator serves the site at $($script:emulator.Address)"
+    Write-Host "  the host serves the site at $($script:site.Address)"
 }
 
 function Stop-Site {
-    if ($null -eq $script:emulator) { return }
-    Stop-SiteEmulator -Process $script:emulator.Process
-    $script:emulator = $null
+    if ($null -eq $script:site) { return }
+    Stop-SiteHost -Process $script:site.Process
+    $script:site = $null
 }
 
 function IntegrationTests {
@@ -231,12 +246,10 @@ function AcceptanceTests {
 }
 
 function BuildFacts {
-    # After the last test: the facts count the tests, healthcheck.txt becomes Healthy, and files.json lists every
-    # file of the site as it is now, for verify.ps1 to compare a deployment with. All but two: files.json itself, and
-    # staticwebapp.config.json, which the service reads and never serves.
+    # After the last test: the facts count the tests. The file goes beside the host, which answers it at /_build.
     Write-Step 'BuildFacts'
     $facts = @{
-        OutputPath      = Join-Path $healthDir 'build-facts.json'
+        OutputPath      = Join-Path $publishDir 'build-facts.json'
         RepoRoot        = $baseDir
         Version         = $version
         TestResultsPath = $testResultsDir
@@ -244,34 +257,64 @@ function BuildFacts {
     }
     & (Join-Path $baseDir 'scripts' 'Write-BuildFacts.ps1') @facts
     if ($LASTEXITCODE -ne 0) { Stop-Build "Write-BuildFacts.ps1 ended with exit code $LASTEXITCODE" }
-    Write-TextFile -Path (Join-Path $healthDir 'healthcheck.txt') -Text 'Healthy'
+    Write-Pass 'build-facts.json is written beside the host'
+}
 
-    $files = @(Get-ChildItem -LiteralPath $siteDir -Recurse -File |
-            Where-Object { $_.FullName -notin (Join-Path $healthDir 'files.json'), (Join-Path $siteDir 'staticwebapp.config.json') } |
-            Sort-Object -Property FullName |
-            ForEach-Object {
-                [ordered]@{
-                    path   = [System.IO.Path]::GetRelativePath($siteDir, $_.FullName).Replace('\', '/')
-                    size   = $_.Length
-                    sha256 = Get-FileSha256 -Path $_.FullName
-                }
-            })
-    Write-TextFile -Path (Join-Path $healthDir 'files.json') -Text ((@{ version = $version; files = $files } | ConvertTo-Json -Depth 4) + "`n")
-    Write-Pass "build-facts.json written, healthcheck.txt says Healthy, files.json lists $($files.Count) files"
+function ContainerImage {
+    # The image, from the published folder the tests asked, with the facts just written: the .NET SDK builds it
+    # (no Dockerfile, no Docker daemon) on the ASP.NET Core runtime image and writes it as an archive in the format
+    # of "docker save". The release loads container-image.tar.gz, finds container-image:<version> in it and pushes
+    # that to the system's registry.
+    Write-Step 'ContainerImage'
+    New-Item -ItemType Directory -Path $imageDir -Force | Out-Null
+    $archive = Join-Path $imageDir 'container-image.tar'
+    $image = @(
+        '-t:PublishContainer'
+        "-p:Configuration=$configuration"
+        "-p:Version=$version"
+        "-p:ContainerImageTag=$version"
+        "-p:PublishDir=$publishDir$([System.IO.Path]::DirectorySeparatorChar)"
+        "-p:ContainerArchiveOutputPath=$archive"
+    )
+    dotnet msbuild $hostProject @image
+    if (-not (Test-Path -LiteralPath $archive)) { Stop-Build "The SDK wrote no image archive to $archive" }
+
+    $compressed = "$archive.gz"
+    $source = [System.IO.File]::OpenRead($archive)
+    try {
+        $target = [System.IO.File]::Create($compressed)
+        try {
+            $gzip = [System.IO.Compression.GZipStream]::new($target, [System.IO.Compression.CompressionLevel]::Fastest)
+            try { $source.CopyTo($gzip) }
+            finally { $gzip.Dispose() }
+        }
+        finally { $target.Dispose() }
+    }
+    finally { $source.Dispose() }
+    Remove-Item -LiteralPath $archive -Force
+    $megabytes = [Math]::Round((Get-Item -LiteralPath $compressed).Length / 1MB, 1)
+    Write-Pass "container-image:$version is in build/container-image/container-image.tar.gz ($megabytes MB)"
+
+    # Where a Docker daemon answers (the integration build), the archive is loaded as the release loads it and the
+    # image is run: it must answer its version and its health on port 8080, as the unprivileged user it runs as.
+    if (-not (Test-DockerDaemon)) {
+        Write-Host 'SKIP the image is not loaded and run: no Docker daemon answers here (the integration build has one)'
+        return
+    }
+    Test-ContainerImage -ArchivePath $compressed -Image "container-image:$version" -Version $version -LogPath (Join-Path $testResultsDir 'container.log')
+    Write-Pass "container-image:$version loads with docker, and its container answers /_version, /_healthcheck and /_build on port 8080"
 }
 
 function DeployPackage {
-    # The whole package the release sends to Octopus: the two scripts, their Bicep file, the site and its version.
+    # The whole package the release sends to Octopus: the deploy/ folder as committed. What it deploys is not in it:
+    # deploy.ps1 names the image of a version by its tag in the system's registry.
     Write-Step 'DeployPackage'
     New-Item -ItemType Directory -Path $packageDir -Force | Out-Null
-    foreach ($file in 'deploy.ps1', 'verify.ps1', 'main.bicep') {
-        Copy-Item -LiteralPath (Join-Path $baseDir 'deploy' $file) -Destination $packageDir
+    Copy-Item -Path (Join-Path $baseDir 'deploy' '*') -Destination $packageDir -Recurse
+    foreach ($file in 'deploy.ps1', 'verify.ps1', 'settings.json', (Join-Path 'infra' 'main.bicep')) {
+        if (-not (Test-Path -LiteralPath (Join-Path $packageDir $file))) { Stop-Build "The package has no $file" }
     }
-    Write-TextFile -Path (Join-Path $packageDir 'version.txt') -Text $version
-    $zip = Join-Path $packageDir 'site.zip'
-    [System.IO.Compression.ZipFile]::CreateFromDirectory($siteDir, $zip, [System.IO.Compression.CompressionLevel]::Optimal, $false)
-    $megabytes = [Math]::Round((Get-Item -LiteralPath $zip).Length / 1MB, 2)
-    Write-Pass "build/deploy-package: deploy.ps1, verify.ps1, main.bicep, version.txt and site.zip ($megabytes MB)"
+    Write-Pass 'build/deploy-package: deploy.ps1, verify.ps1, settings.json and infra/main.bicep'
 }
 
 function Build {
@@ -294,6 +337,7 @@ function Build {
         Stop-Site
     }
     BuildFacts
+    ContainerImage
     DeployPackage
     Write-Host "PASS the private build of $version, in $([int]([datetime]::UtcNow - $started).TotalSeconds) seconds"
 }

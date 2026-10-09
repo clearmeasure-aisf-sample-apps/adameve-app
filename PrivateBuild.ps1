@@ -5,12 +5,14 @@
     The private build: the one command that proves a change, at a desk and in the integration build.
 
 .DESCRIPTION
-    Compiles the solution with warnings as errors, runs the unit tests, publishes the site, writes its health files,
-    checks the payload budget, serves the published site with the Static Web Apps CLI emulator and runs the
-    integration tests and the full-system tests (Playwright) against it, writes the build facts and makes the package
-    build/deploy-package. The workflow Build runs nothing but this command with -CI.
+    Compiles the solution with warnings as errors, runs the unit tests, publishes the host with the client as its
+    web root, checks the payload budget, starts the published host as a process and runs the integration tests and
+    the full-system tests (Playwright) against it, writes the build facts, makes the container image from the very
+    folder the tests asked (build/container-image/container-image.tar.gz) and the package build/deploy-package. The
+    workflow Build runs nothing but this command with -CI.
 
-    Needs the .NET 10 SDK, PowerShell 7.4 or later with the module PSScriptAnalyzer, and Node.js 20 or later.
+    Needs the .NET 10 SDK and PowerShell 7.4 or later with the module PSScriptAnalyzer. No Docker: the SDK builds
+    the image. Where a Docker daemon answers, the build also loads the image and runs it once.
 
 .PARAMETER Version
     The version of the build (MAJOR.MINOR.run_number). Default: 1.0.0.

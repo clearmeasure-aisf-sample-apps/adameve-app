@@ -2,7 +2,7 @@
 
 <#
 .SYNOPSIS
-    The helpers of build.ps1: log lines, native commands, the site emulator, file hashes.
+    The helpers of build.ps1: log lines, tools, file hashes, the site's host as a process, the image as a container.
 
 .DESCRIPTION
     Dot-sourced by build.ps1. Nothing here runs on its own.
@@ -58,54 +58,107 @@ function Get-FreeTcpPort {
     finally { $listener.Stop() }
 }
 
-function Start-SiteEmulator {
-    # Serves a folder with the Static Web Apps CLI emulator, which applies staticwebapp.config.json as Azure does
-    # (routes, rewrites, headers, the navigation fallback), and waits until it answers. Returns the process and the
-    # address.
+function Wait-Site {
+    # Asks an address until it answers 200, or until the time is up. True when it answered.
+    param([Parameter(Mandatory)] [string] $Address, [Parameter(Mandatory)] [int] $Seconds, [scriptblock] $Ended = { $false })
+    $deadline = [datetime]::UtcNow.AddSeconds($Seconds)
+    while ([datetime]::UtcNow -lt $deadline) {
+        if (& $Ended) { return $false }
+        try {
+            $answer = Invoke-WebRequest -Uri $Address -TimeoutSec 5 -SkipHttpErrorCheck
+            if ($answer.StatusCode -eq 200) { return $true }
+        }
+        catch [System.Net.Http.HttpRequestException], [System.Threading.Tasks.TaskCanceledException] {
+            Write-Verbose "No answer from $Address yet: $($_.Exception.Message)"
+        }
+        Start-Sleep -Milliseconds 500
+    }
+    return $false
+}
+
+function Start-SiteHost {
+    # Starts the published host (dotnet AdamEve.Host.dll) on a free port of this machine, from its own folder, which
+    # is its content root, and waits until it answers. Returns the process and the address.
     param(
-        [Parameter(Mandatory)] [string] $SitePath,
-        [Parameter(Mandatory)] [string] $RepositoryRoot,
+        [Parameter(Mandatory)] [string] $PublishPath,
         [Parameter(Mandatory)] [string] $LogPath
     )
-    $swa = Join-Path $RepositoryRoot 'node_modules' '.bin' ($IsWindows ? 'swa.cmd' : 'swa')
-    if (-not (Test-Path -LiteralPath $swa)) {
-        Stop-Build "The Static Web Apps CLI is not in node_modules: run npm ci in $RepositoryRoot"
-    }
     $port = Get-FreeTcpPort
     $address = "http://127.0.0.1:$port"
     $start = @{
-        FilePath               = $swa
-        ArgumentList           = @('start', $SitePath, '--host', '127.0.0.1', '--port', "$port")
-        WorkingDirectory       = $SitePath
+        FilePath               = 'dotnet'
+        ArgumentList           = @('AdamEve.Host.dll', '--urls', $address)
+        WorkingDirectory       = $PublishPath
         RedirectStandardOutput = $LogPath
         RedirectStandardError  = "$LogPath.err"
         PassThru               = $true
     }
     $process = Start-Process @start
-    $deadline = [datetime]::UtcNow.AddSeconds(90)
-    while ([datetime]::UtcNow -lt $deadline) {
-        if ($process.HasExited) {
-            Stop-Build "The emulator ended with exit code $($process.ExitCode); its output is in $LogPath and $LogPath.err"
-        }
-        try {
-            $answer = Invoke-WebRequest -Uri "$address/" -TimeoutSec 5 -SkipHttpErrorCheck
-            if ($answer.StatusCode -eq 200) {
-                return @{ Process = $process; Address = $address }
-            }
-        }
-        catch [System.Net.Http.HttpRequestException], [System.Threading.Tasks.TaskCanceledException] {
-            Start-Sleep -Milliseconds 500
-        }
+    if (Wait-Site -Address "$address/_healthcheck" -Seconds 60 -Ended { $process.HasExited }) {
+        return @{ Process = $process; Address = $address }
     }
-    Stop-SiteEmulator -Process $process
-    Stop-Build "The emulator did not answer at $address within 90 seconds; its output is in $LogPath and $LogPath.err"
+    if ($process.HasExited) {
+        Stop-Build "The host ended with exit code $($process.ExitCode); its output is in $LogPath and $LogPath.err"
+    }
+    Stop-SiteHost -Process $process
+    Stop-Build "The host did not answer Healthy at $address/_healthcheck within 60 seconds; its output is in $LogPath and $LogPath.err"
 }
 
-function Stop-SiteEmulator {
-    # Ends the emulator and every process it started.
+function Stop-SiteHost {
+    # Ends the host and every process it started.
     param([Parameter(Mandatory)] [System.Diagnostics.Process] $Process)
     if (-not $Process.HasExited) {
         $Process.Kill($true)
         $Process.WaitForExit(15000) | Out-Null
     }
+}
+
+function Test-DockerDaemon {
+    # True when a Docker daemon answers this account.
+    if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { return $false }
+    $PSNativeCommandUseErrorActionPreference = $false
+    docker info *> $null
+    return $LASTEXITCODE -eq 0
+}
+
+function Test-ContainerImage {
+    # Loads an image archive as the release does (gunzip, docker load), runs the image and asks the container what a
+    # deployment asks: its version, its health, its build facts. Stops the build when one of them is not as built.
+    param(
+        [Parameter(Mandatory)] [string] $ArchivePath,
+        [Parameter(Mandatory)] [string] $Image,
+        [Parameter(Mandatory)] [string] $Version,
+        [Parameter(Mandatory)] [string] $LogPath
+    )
+    $PSNativeCommandUseErrorActionPreference = $false
+    $loaded = @(docker load --input $ArchivePath 2>&1 | ForEach-Object { "$_" })
+    if ($LASTEXITCODE -ne 0) { Stop-Build "docker load of $ArchivePath ended with exit code $($LASTEXITCODE): $($loaded -join ' ')" }
+    docker image inspect $Image *> $null
+    if ($LASTEXITCODE -ne 0) { Stop-Build "The archive holds no image $($Image): docker load said $($loaded -join ' ')" }
+
+    $port = Get-FreeTcpPort
+    $container = "$(docker run --detach --rm --publish "127.0.0.1:$($port):8080" $Image 2>&1)".Trim()
+    if ($LASTEXITCODE -ne 0) { Stop-Build "docker run of $Image ended with exit code $($LASTEXITCODE): $container" }
+    $address = "http://127.0.0.1:$port"
+    $problem = ''
+    try {
+        if (-not (Wait-Site -Address "$address/_healthcheck" -Seconds 60)) {
+            $problem = "the container did not answer $address/_healthcheck within 60 seconds"
+        }
+        else {
+            $health = "$(Invoke-RestMethod -Uri "$address/_healthcheck" -TimeoutSec 10)".Trim()
+            $served = [string] (Invoke-RestMethod -Uri "$address/_version" -TimeoutSec 10).version
+            $facts = Invoke-RestMethod -Uri "$address/_build" -TimeoutSec 10
+            $front = Invoke-WebRequest -Uri "$address/" -TimeoutSec 10
+            if ($health -ne 'Healthy') { $problem = "/_healthcheck answers `"$health`"" }
+            elseif ($served -ne $Version) { $problem = "/_version answers `"$served`", not $Version" }
+            elseif ([string] $facts.version -ne $Version -or $null -eq $facts.tests) { $problem = '/_build does not answer the facts of this build with its tests' }
+            elseif ($front.StatusCode -ne 200 -or "$($front.Headers['Content-Security-Policy'])" -notmatch "'sha256-") { $problem = '/ does not answer the page with the import map allowed by hash' }
+        }
+    }
+    finally {
+        docker logs $container *> $LogPath
+        docker stop $container *> $null
+    }
+    if ($problem) { Stop-Build "The image $Image is not as built: $problem; the container's output is in $LogPath" }
 }
