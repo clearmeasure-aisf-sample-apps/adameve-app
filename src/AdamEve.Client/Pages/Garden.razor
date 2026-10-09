@@ -1,0 +1,106 @@
+@page "/garden"
+@using AdamEve.Client.Game
+@using AdamEve.Core.Saves
+@implements IDisposable
+@inject GameSession Session
+
+<PageTitle>@GameInfo.Title</PageTitle>
+
+@* The game root. The canvas module writes the data- attributes the tests read (player tile, facing, the M1
+   verdict). All text is here, in the page, over the canvas: the canvas holds no words. *@
+<div id="game" class="game @TextClass" data-testid="game">
+    <h1 class="visually-hidden">@GameInfo.Title</h1>
+
+    <div class="game-play">
+        <canvas id="game-canvas" class="game-canvas" data-testid="game-canvas" aria-hidden="true"></canvas>
+    </div>
+
+    <div class="game-controls" data-testid="controls">
+        <div class="dpad" data-testid="dpad">
+            <button type="button" class="game-button dpad-up" data-dir="up" data-testid="dpad-up" aria-label="@GameText.Up">&#9650;</button>
+            <button type="button" class="game-button dpad-left" data-dir="left" data-testid="dpad-left" aria-label="@GameText.Left">&#9664;</button>
+            <button type="button" class="game-button dpad-right" data-dir="right" data-testid="dpad-right" aria-label="@GameText.Right">&#9654;</button>
+            <button type="button" class="game-button dpad-down" data-dir="down" data-testid="dpad-down" aria-label="@GameText.Down">&#9660;</button>
+        </div>
+    </div>
+
+    <button type="button" class="game-button game-menu" data-testid="menu-button" aria-expanded="@(Session.MenuOpen ? "true" : "false")" @onclick="Session.ToggleMenu">@GameText.Menu</button>
+
+    <section class="game-panel @(Session.MenuOpen ? null : "game-panel-empty")" data-game-panel data-testid="settings" aria-live="polite">
+        @if (Session.MenuOpen)
+        {
+            <h2 class="game-panel-title">@GameText.Settings</h2>
+            <fieldset class="game-setting">
+                <legend>@GameText.TextSize</legend>
+                @foreach (var (size, label) in Sizes)
+                {
+                    <label class="game-choice">
+                        <input type="radio" name="text-size" data-testid="text-size-@size" checked="@(Session.Settings.TextSize == size)" @onchange="() => Session.SetTextSize(size)" />
+                        <span>@label</span>
+                    </label>
+                }
+            </fieldset>
+            <label class="game-choice game-setting">
+                <input type="checkbox" data-testid="sound" checked="@Session.Settings.Sound" @onchange="SoundChanged" />
+                <span>@GameText.Sound</span>
+            </label>
+            <p class="game-panel-links">
+                <a href="" data-testid="title-link">@GameText.BackToTitle</a>
+                <button type="button" class="game-button" data-testid="settings-close" @onclick="Session.ToggleMenu">@GameText.CloseDefinition</button>
+            </p>
+        }
+    </section>
+
+    @* Narration: the plain panel, with no reference. *@
+    <aside class="game-panel game-notice @(Session.SaveUnreadable ? null : "game-panel-empty")" data-game-panel data-testid="save-notice" aria-live="polite">
+        @if (Session.SaveUnreadable)
+        {
+            <p class="narration-text">@GameText.SaveUnreadable</p>
+            <button type="button" class="game-button" data-testid="save-notice-close" @onclick="Session.DismissNotice">@GameText.CloseDefinition</button>
+        }
+    </aside>
+
+    <p class="visually-hidden" aria-live="polite" data-testid="status-line">@GameText.RegionName(Session.RegionId)</p>
+</div>
+
+@code {
+    private static readonly (TextSize Size, string Label)[] Sizes =
+    [
+        (TextSize.S, GameText.TextSizeSmall),
+        (TextSize.M, GameText.TextSizeMedium),
+        (TextSize.L, GameText.TextSizeLarge),
+        (TextSize.XL, GameText.TextSizeExtraLarge),
+    ];
+
+    private string TextClass => Session.Settings.TextSize switch
+    {
+        TextSize.S => "text-s",
+        TextSize.L => "text-l",
+        TextSize.XL => "text-xl",
+        _ => "text-m",
+    };
+
+    protected override void OnInitialized()
+    {
+        Session.LoadSettings();
+        Session.Changed += Render;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Session.StartAsync();
+        }
+    }
+
+    public void Dispose()
+    {
+        Session.Changed -= Render;
+        Session.Stop();
+    }
+
+    private void Render() => _ = InvokeAsync(StateHasChanged);
+
+    private void SoundChanged(ChangeEventArgs change) => Session.SetSound(change.Value is true);
+}

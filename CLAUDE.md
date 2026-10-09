@@ -58,6 +58,12 @@ Before Genesis 3:7 the private parts of Adam and the woman are always turned awa
 every sprite frame, pose, animation frame, portrait, cutscene shot and camera angle. Fig-leaf aprons from 3:7,
 coats of skins from 3:21. No asset is committed without the checks of the design and a human review.
 
+The check is one class, `AdamEve.Core.Rigs.ConcealmentChecker`: the unit tests run it over every frame of every rig
+(`ConcealmentTests`), and the running game runs it for every character in every frame and writes the verdict on the
+game root (`data-concealment`). A rig part is bound to a bone; a concealment zone needs a concealment record for
+every view and covering variant, or the frame fails closed. Never weaken the check to make a frame pass: change the
+rig.
+
 ## Assets (design, section 5.5)
 
 All generated, each from a spec in the repository, with its provenance and licence. Which generators may be used,
