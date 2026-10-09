@@ -151,3 +151,241 @@ a {
     font-size: 1.125rem;
     line-height: 1.5;
 }
+
+/* The garden. The game root fills the viewport: the play area with its canvas, and on a touch device the D-pad,
+   below the play area in portrait and over its lower left corner in landscape (design, section 6). */
+.game {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    overflow: hidden;
+    color: #1f2a1c;
+    background: #2a6034;
+    font-family: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 1.25rem;
+    line-height: 1.5;
+    text-align: left;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+}
+
+/* Text size: S, M, L, XL; 18 px is the smallest body size (design, section 1). */
+.game.text-s {
+    font-size: 1.125rem;
+}
+
+.game.text-m {
+    font-size: 1.25rem;
+}
+
+.game.text-l {
+    font-size: 1.5rem;
+}
+
+.game.text-xl {
+    font-size: 1.75rem;
+}
+
+.game-play {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.game-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+}
+
+.game-button {
+    box-sizing: border-box;
+    min-width: 3rem;
+    min-height: 3rem;
+    margin: 0;
+    padding: 0 0.75rem;
+    border: 2px solid #1f2a1c;
+    border-radius: 0.5rem;
+    color: #1f2a1c;
+    background: #f6f3e7;
+    font: inherit;
+    line-height: 1.2;
+    cursor: pointer;
+    touch-action: none;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.game-button:focus-visible,
+.game-choice input:focus-visible {
+    outline: 3px solid #ffffff;
+    outline-offset: 2px;
+}
+
+.game-menu {
+    position: absolute;
+    top: calc(0.5rem + env(safe-area-inset-top));
+    right: calc(0.5rem + env(safe-area-inset-right));
+}
+
+.game-controls {
+    display: none;
+    padding: 0.5rem 0.75rem;
+}
+
+.game[data-touch="true"] .game-controls {
+    display: flex;
+}
+
+.dpad {
+    display: grid;
+    grid-template-columns: repeat(3, 3rem);
+    grid-template-rows: repeat(3, 3rem);
+}
+
+.dpad .game-button {
+    padding: 0;
+    font-size: 1.25rem;
+}
+
+.dpad-up {
+    grid-column: 2;
+    grid-row: 1;
+}
+
+.dpad-left {
+    grid-column: 1;
+    grid-row: 2;
+}
+
+.dpad-right {
+    grid-column: 3;
+    grid-row: 2;
+}
+
+.dpad-down {
+    grid-column: 2;
+    grid-row: 3;
+}
+
+@media (orientation: landscape) {
+    .game {
+        grid-template-rows: minmax(0, 1fr);
+    }
+
+    .game-controls {
+        position: absolute;
+        bottom: calc(0.25rem + env(safe-area-inset-bottom));
+        left: calc(0.25rem + env(safe-area-inset-left));
+        opacity: 0.85;
+    }
+}
+
+/* The panel of the game: plain and light, docked at the bottom (narration style; nothing here is Scripture). */
+.game-panel {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    box-sizing: border-box;
+    max-height: 100%;
+    padding: 0.75rem calc(1rem + env(safe-area-inset-right)) calc(0.75rem + env(safe-area-inset-bottom)) calc(1rem + env(safe-area-inset-left));
+    overflow: auto;
+    border-top: 2px solid #56634f;
+    color: #1f2a1c;
+    background: #ffffff;
+    touch-action: manipulation;
+}
+
+.game-panel-empty {
+    height: 0;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+}
+
+.game-panel-title {
+    margin: 0 0 0.25rem;
+    font-size: 1.15em;
+    line-height: 1.25;
+}
+
+.game-setting {
+    margin: 0 0 0.5rem;
+    padding: 0;
+    border: 0;
+}
+
+.game-setting legend {
+    padding: 0;
+}
+
+.game-choice {
+    display: inline-flex;
+    gap: 0.5rem;
+    align-items: center;
+    min-width: 3rem;
+    min-height: 3rem;
+    margin-right: 0.75rem;
+    cursor: pointer;
+}
+
+.game-choice input {
+    width: 1.5rem;
+    height: 1.5rem;
+    margin: 0;
+}
+
+.game-panel-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: center;
+    justify-content: space-between;
+    margin: 0;
+}
+
+.game-panel-links a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 3rem;
+}
+
+.game-notice {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.game-notice.game-panel-empty {
+    display: block;
+}
+
+/* Read by a screen reader, not seen: the title of the page and the status line (design, section 5.7). */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    border: 0;
+    white-space: nowrap;
+}

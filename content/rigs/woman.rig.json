@@ -1,0 +1,61 @@
+{
+  "id": "woman",
+  "bones": [
+    {"id": "root", "parent": null, "x": 0, "y": 0},
+    {"id": "hip", "parent": "root", "x": 0, "y": -16},
+    {"id": "torso", "parent": "hip", "x": 0, "y": -6},
+    {"id": "head", "parent": "torso", "x": 0, "y": -16},
+    {"id": "armL", "parent": "torso", "x": -9.5, "y": -10, "sideX": 0},
+    {"id": "armR", "parent": "torso", "x": 9.5, "y": -10, "sideX": 0},
+    {"id": "legL", "parent": "hip", "x": -3.5, "y": 5, "sideX": -1},
+    {"id": "legR", "parent": "hip", "x": 3.5, "y": 5, "sideX": 1}
+  ],
+  "parts": [
+    {"id": "hair-long", "bone": "head", "shape": "ellipse", "w": 20, "h": 32, "colour": "#2B1D16", "role": "hair", "at": {"x": 0, "y": 9, "depth": 1}, "side": {"x": -3, "y": 9, "depth": 1}, "back": {"x": 0, "y": 9, "depth": 8}},
+    {"id": "legL", "bone": "legL", "shape": "rectangle", "w": 6, "h": 12, "colour": "#C99A73", "role": "body", "at": {"x": 0, "y": 5.5, "depth": 2}},
+    {"id": "legR", "bone": "legR", "shape": "rectangle", "w": 6, "h": 12, "colour": "#E2B994", "role": "body", "at": {"x": 0, "y": 5.5, "depth": 2.1}},
+    {"id": "hips", "bone": "hip", "shape": "rectangle", "w": 15, "h": 11, "colour": "#E2B994", "role": "body", "at": {"x": 0, "y": 1, "depth": 3}},
+    {"id": "torso", "bone": "torso", "shape": "rectangle", "w": 15, "h": 13, "colour": "#E2B994", "role": "body", "at": {"x": 0, "y": -5, "depth": 4}},
+    {"id": "armL", "bone": "armL", "shape": "rectangle", "w": 4.5, "h": 14, "colour": "#C99A73", "role": "body", "at": {"x": 0, "y": 7, "depth": 5}, "hide": ["side"]},
+    {"id": "armR", "bone": "armR", "shape": "rectangle", "w": 4.5, "h": 14, "colour": "#E2B994", "role": "body", "at": {"x": 0, "y": 7, "depth": 5.1}},
+    {"id": "head", "bone": "head", "shape": "ellipse", "w": 15, "h": 15, "colour": "#E2B994", "role": "body", "at": {"x": 0, "y": -1.5, "depth": 6}},
+    {"id": "hair-back", "bone": "head", "shape": "ellipse", "w": 17, "h": 14, "colour": "#2B1D16", "role": "hair", "at": {"x": 0, "y": -4, "depth": 5.5}, "side": {"x": -2, "y": -4, "depth": 5.5}, "back": {"x": 0, "y": -3, "depth": 7}},
+    {"id": "hair-top", "bone": "head", "shape": "ellipse", "w": 15, "h": 7, "colour": "#2B1D16", "role": "hair", "at": {"x": 0, "y": -6.5, "depth": 7}, "hide": ["back"]},
+    {"id": "eyeL", "bone": "head", "shape": "ellipse", "w": 2.4, "h": 2.4, "colour": "#2B1D16", "role": "detail", "at": {"x": -3, "y": -1, "depth": 8}, "hide": ["side", "back"], "turnX": 2},
+    {"id": "eyeR", "bone": "head", "shape": "ellipse", "w": 2.4, "h": 2.4, "colour": "#2B1D16", "role": "detail", "at": {"x": 3, "y": -1, "depth": 8}, "side": {"x": 5, "y": -1, "depth": 8}, "hide": ["back"], "turnX": 2},
+    {"id": "hair-front-left", "bone": "head", "shape": "rectangle", "w": 11, "h": 17, "colour": "#2B1D16", "role": "hair", "at": {"x": -4.5, "y": 13, "depth": 12}, "hide": ["back"]},
+    {"id": "hair-front-right", "bone": "head", "shape": "rectangle", "w": 11, "h": 17, "colour": "#2B1D16", "role": "hair", "at": {"x": 4.5, "y": 13, "depth": 12}, "hide": ["back"]},
+    {"id": "foliage-bush", "bone": "hip", "shape": "ellipse", "w": 30, "h": 20, "colour": "#3E8E4E", "role": "occluder", "at": {"x": 0, "y": 1, "depth": 20}, "coverings": ["none"]},
+    {"id": "foliage-fern-left", "bone": "hip", "shape": "ellipse", "w": 10, "h": 22, "colour": "#2F7A44", "role": "occluder", "at": {"x": -10, "y": -1, "depth": 21, "rotation": -20}, "coverings": ["none"]},
+    {"id": "foliage-fern-right", "bone": "hip", "shape": "ellipse", "w": 10, "h": 22, "colour": "#57A65B", "role": "occluder", "at": {"x": 10, "y": -1, "depth": 21, "rotation": 20}, "coverings": ["none"]},
+    {"id": "foliage-grass-left", "bone": "hip", "shape": "ellipse", "w": 4, "h": 16, "colour": "#57A65B", "role": "occluder", "at": {"x": -3, "y": 2, "depth": 22, "rotation": -8}, "coverings": ["none"]},
+    {"id": "foliage-grass-right", "bone": "hip", "shape": "ellipse", "w": 4, "h": 16, "colour": "#2F7A44", "role": "occluder", "at": {"x": 4, "y": 3, "depth": 22, "rotation": 10}, "coverings": ["none"]},
+    {"id": "foliage-flower", "bone": "hip", "shape": "ellipse", "w": 5, "h": 5, "colour": "#F4E9C8", "role": "occluder", "at": {"x": 7, "y": -4, "depth": 23}, "coverings": ["none"]},
+    {"id": "apron", "bone": "hip", "shape": "rectangle", "w": 21, "h": 15, "colour": "#4E9A4A", "role": "apron", "at": {"x": 0, "y": 1.5, "depth": 10}, "coverings": ["aprons"]},
+    {"id": "coat", "bone": "torso", "shape": "rectangle", "w": 21, "h": 27, "colour": "#8A6A4A", "role": "coat", "at": {"x": 0, "y": 2, "depth": 11}, "coverings": ["coats"]}
+  ],
+  "zones": [
+    {"id": "pelvis", "bone": "hip", "on": "hips", "points": [-7, -4, 7, -4, 7, 6, -7, 6], "depth": {"front": 3.5, "side": 3.5, "back": 2.5}},
+    {"id": "chest", "bone": "torso", "on": "torso", "points": [-7, -8.5, 7, -8.5, 7, -1.5, -7, -1.5], "depth": {"front": 4.5, "side": 4.5, "back": 3.5}}
+  ],
+  "concealment": [
+    {"zone": "pelvis", "covering": "none", "view": "front", "by": ["occluder"]},
+    {"zone": "pelvis", "covering": "none", "view": "side", "by": ["occluder"]},
+    {"zone": "pelvis", "covering": "none", "view": "back", "facingAway": true},
+    {"zone": "pelvis", "covering": "aprons", "view": "front", "by": ["apron"]},
+    {"zone": "pelvis", "covering": "aprons", "view": "side", "by": ["apron"]},
+    {"zone": "pelvis", "covering": "aprons", "view": "back", "facingAway": true},
+    {"zone": "pelvis", "covering": "coats", "view": "front", "by": ["coat"]},
+    {"zone": "pelvis", "covering": "coats", "view": "side", "by": ["coat"]},
+    {"zone": "pelvis", "covering": "coats", "view": "back", "facingAway": true},
+    {"zone": "chest", "covering": "none", "view": "front", "by": ["hair"]},
+    {"zone": "chest", "covering": "none", "view": "side", "by": ["hair"]},
+    {"zone": "chest", "covering": "none", "view": "back", "facingAway": true},
+    {"zone": "chest", "covering": "aprons", "view": "front", "by": ["hair"]},
+    {"zone": "chest", "covering": "aprons", "view": "side", "by": ["hair"]},
+    {"zone": "chest", "covering": "aprons", "view": "back", "facingAway": true},
+    {"zone": "chest", "covering": "coats", "view": "front", "by": ["hair", "coat"]},
+    {"zone": "chest", "covering": "coats", "view": "side", "by": ["hair", "coat"]},
+    {"zone": "chest", "covering": "coats", "view": "back", "facingAway": true}
+  ]
+}

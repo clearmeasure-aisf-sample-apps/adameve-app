@@ -1,18 +1,20 @@
 using System.Security.Cryptography;
+using AdamEve.Content.Garden;
 using AdamEve.Content.Scripture;
 
 namespace AdamEve.Content;
 
 /// <summary>
-/// The content of the game, loaded and checked: the parsed canonical text and the glossary. The client loads it once
+/// The content of the game, loaded and checked: the parsed canonical text, the glossary and the garden. The client loads it once
 /// at start and plays nothing when it cannot.
 /// </summary>
 public sealed class GameContent
 {
-    private GameContent(ScriptureDocument scripture, Glossary glossary)
+    private GameContent(ScriptureDocument scripture, Glossary glossary, GardenContent garden)
     {
         Scripture = scripture;
         Glossary = glossary;
+        Garden = garden;
     }
 
     /// <summary>The canonical text, parsed.</summary>
@@ -21,9 +23,13 @@ public sealed class GameContent
     /// <summary>The glossary.</summary>
     public Glossary Glossary { get; }
 
+    /// <summary>The garden: its map, the rigs of Adam and the woman, and their animations.</summary>
+    public GardenContent Garden { get; }
+
     /// <summary>
     /// Loads the content from bytes and checks it: the SHA-256 of the canonical text is the pinned value, the text
-    /// parses, the glossary parses and each of its words occurs in at least one verse.
+    /// parses, the glossary parses and each of its words occurs in at least one verse; and the embedded garden
+    /// loads (<see cref="GardenContent.Load"/>).
     /// </summary>
     /// <param name="scripture">The bytes of the canonical text.</param>
     /// <param name="glossary">The bytes of the glossary.</param>
@@ -45,7 +51,7 @@ public sealed class GameContent
             throw new ContentFormatException($"The glossary word \"{strays[0].Term}\" occurs in no verse.");
         }
 
-        return new GameContent(document, words);
+        return new GameContent(document, words, GardenContent.LoadEmbedded());
     }
 
     /// <summary>The start-up content check: loads and checks the content this assembly embeds.</summary>

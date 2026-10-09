@@ -3,6 +3,8 @@
   <!-- Blazor WebAssembly, standalone: the published wwwroot is the whole deployable. There is no server. -->
   <PropertyGroup>
     <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+    <!-- [JSImport] and [JSExport] generate their marshalling code as unsafe code (design, section 7.1). -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
