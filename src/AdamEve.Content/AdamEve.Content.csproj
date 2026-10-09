@@ -5,4 +5,11 @@
     <ProjectReference Include="../AdamEve.Core/AdamEve.Core.csproj" />
   </ItemGroup>
 
+  <!-- The content is embedded from content/, so the repository has one copy of each file. The build copies the
+       bytes as they are: the canonical text is never rewritten. -->
+  <ItemGroup>
+    <EmbeddedResource Include="../../content/kjv-genesis-1-3.txt" LogicalName="AdamEve.Content.kjv-genesis-1-3.txt" />
+    <EmbeddedResource Include="../../content/glossary.json" LogicalName="AdamEve.Content.glossary.json" />
+  </ItemGroup>
+
 </Project>

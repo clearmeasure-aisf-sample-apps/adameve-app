@@ -1,0 +1,28 @@
+@page "/reader"
+@inject ContentLoadResult ContentCheck
+
+<PageTitle>@GameInfo.Title</PageTitle>
+
+<h1 data-testid="reader-title">@GameText.ReaderTitle</h1>
+
+<p><a href="" data-testid="title-link">@GameText.BackToTitle</a></p>
+
+@if (ContentCheck.IsLoaded)
+{
+    <div class="reader" data-testid="reader">
+        @foreach (var verse in ContentCheck.Content.Scripture.Verses)
+        {
+            <ScriptureCard @key="verse.Ref" Verse="verse" Glossary="ContentCheck.Content.Glossary" OnGlossaryWord="Define" />
+        }
+    </div>
+}
+
+<NarrationPanel Entry="defined" OnClose="PutAway" />
+
+@code {
+    private GlossaryEntry? defined;
+
+    private void Define(GlossaryEntry entry) => defined = entry;
+
+    private void PutAway() => defined = null;
+}

@@ -1,0 +1,20 @@
+@* Narration: a plain panel in a sans-serif face, with no reference. Here it holds a glossary definition, which is
+   game text and stays outside the Scripture card. The region is always present so that a screen reader announces a
+   definition when it appears. *@
+<aside class="narration-panel @(Entry is null ? "narration-panel-empty" : null)" data-testid="glossary-definition" aria-live="polite">
+    @if (Entry is not null)
+    {
+        <p class="narration-text"><strong data-testid="glossary-term">@Entry.Term</strong>: <span data-testid="glossary-meaning">@Entry.Definition</span></p>
+        <button type="button" class="narration-close" data-testid="glossary-close" @onclick="OnClose">@GameText.CloseDefinition</button>
+    }
+</aside>
+
+@code {
+    /// <summary>The glossary entry to show, or null for none.</summary>
+    [Parameter]
+    public GlossaryEntry? Entry { get; set; }
+
+    /// <summary>The player put the definition away.</summary>
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+}

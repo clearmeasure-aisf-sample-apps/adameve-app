@@ -45,3 +45,109 @@ h1:focus {
     right: 0.75rem;
     cursor: pointer;
 }
+
+a {
+    color: #1d4d2b;
+}
+
+/* The reader. Body text is 18 px or more with a line height of 1.5 (design, section 1). */
+.reader {
+    text-align: left;
+    padding-bottom: 8rem;
+}
+
+/* Scripture: parchment, a serif face, always with its reference. Nothing else looks like this. */
+.scripture-card {
+    margin: 1rem 0;
+    padding: 1rem 1.25rem 0.75rem;
+    border: 1px solid #b89a5b;
+    border-radius: 0.25rem;
+    color: #2b2113;
+    background: #f3e3bd;
+    font-family: "Source Serif 4", Georgia, "Times New Roman", Times, serif;
+    font-size: 1.1875rem;
+    line-height: 1.5;
+}
+
+.scripture-text {
+    margin: 0;
+}
+
+.scripture-reference {
+    margin: 0.5rem 0 0;
+    font-size: 1rem;
+    font-style: italic;
+    text-align: right;
+}
+
+.glossary-word {
+    display: inline;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    color: inherit;
+    background: none;
+    font: inherit;
+    text-decoration: underline;
+    text-decoration-thickness: 0.09em;
+    text-underline-offset: 0.18em;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.glossary-word:focus-visible {
+    outline: 3px solid #1d4d2b;
+    outline-offset: 2px;
+}
+
+/* Narration: a plain light panel, a sans-serif face, no reference. */
+.narration-panel {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    box-sizing: border-box;
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    border-top: 2px solid #56634f;
+    color: #1f2a1c;
+    background: #ffffff;
+    font-family: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 1.125rem;
+    line-height: 1.5;
+    text-align: left;
+}
+
+/* Empty, the panel takes no room but stays in the page, so that a screen reader announces what appears in it. */
+.narration-panel-empty {
+    height: 0;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+}
+
+.narration-text {
+    margin: 0;
+}
+
+.narration-close {
+    min-width: 3rem;
+    min-height: 3rem;
+    padding: 0 1rem;
+    border: 2px solid #1f2a1c;
+    border-radius: 0.5rem;
+    color: #1f2a1c;
+    background: #f6f3e7;
+    font: inherit;
+    cursor: pointer;
+}
+
+.content-failure {
+    font-size: 1.125rem;
+    line-height: 1.5;
+}

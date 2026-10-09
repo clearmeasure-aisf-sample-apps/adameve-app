@@ -1,0 +1,43 @@
+@* Scripture: a parchment card in a serif face that always carries its reference. It shows nothing but the parsed
+   text of the verse and the reference; a glossary word is that same text, underlined, and its definition opens
+   outside the card. *@
+<article class="scripture-card" data-testid="scripture-card" data-ref="@Verse.Ref">
+    <p class="scripture-text" data-testid="scripture-text">@Text</p>
+    <p class="scripture-reference" data-testid="scripture-reference">@GameText.Citation(Verse.Ref)</p>
+</article>
+
+@code {
+    /// <summary>The verse the card shows.</summary>
+    [Parameter, EditorRequired]
+    public Verse Verse { get; set; } = null!;
+
+    /// <summary>The glossary whose words are underlined. Without one the card shows plain text.</summary>
+    [Parameter]
+    public Glossary? Glossary { get; set; }
+
+    /// <summary>A glossary word was tapped, or chosen with Enter.</summary>
+    [Parameter]
+    public EventCallback<GlossaryEntry> OnGlossaryWord { get; set; }
+
+    // Built without markup so that no white space of this file ends up between the runs of the verse.
+    private RenderFragment Text => builder =>
+    {
+        var segments = Glossary?.Segment(Verse.Text) ?? [new TextSegment(Verse.Text, null)];
+        foreach (var segment in segments)
+        {
+            if (segment.Entry is not { } entry)
+            {
+                builder.AddContent(0, segment.Text);
+                continue;
+            }
+
+            builder.OpenElement(1, "button");
+            builder.AddAttribute(2, "type", "button");
+            builder.AddAttribute(3, "class", "glossary-word");
+            builder.AddAttribute(4, "data-testid", "glossary-word");
+            builder.AddAttribute(5, "onclick", EventCallback.Factory.Create(this, () => OnGlossaryWord.InvokeAsync(entry)));
+            builder.AddContent(6, segment.Text);
+            builder.CloseElement();
+        }
+    };
+}
