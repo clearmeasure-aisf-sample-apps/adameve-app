@@ -314,6 +314,14 @@ public class GardenTests : PlaywrightTest
             await KeepScreenshotAsync(page, $"m1-{device}-{character}-{facing.Name}".Replace(' ', '-'));
         }
 
+        // For a screenshot Playwright adds a style sheet of its own to the page. On WebKit the content security
+        // policy of the site refuses it (style-src 'self') and the browser says so, once for each screenshot. That
+        // is the policy at work on the test's tool, not an error of the game: at most one such line for each
+        // screenshot is set aside, and every other error still fails the test.
+        const string RefusedStyleSheet = "Refused to apply a stylesheet because its hash, its nonce, or 'unsafe-inline' does not appear in the style-src directive of the Content Security Policy.";
+        await page.WaitForTimeoutAsync(250);
+        guarded.Errors.Count(error => error == RefusedStyleSheet).ShouldBeLessThanOrEqualTo(EightFacings.Length);
+        guarded.Errors.RemoveAll(error => error == RefusedStyleSheet);
         Tile(x, y).ShouldBe(open.ToString());
         await ExpectACleanRunAsync(guarded, game);
     }
@@ -487,8 +495,6 @@ public class GardenTests : PlaywrightTest
         var folder = Path.Combine(TestContext.CurrentContext.WorkDirectory, "m1-screenshots");
         Directory.CreateDirectory(folder);
         var path = Path.Combine(folder, name + ".png");
-        // Playwright hides the text caret for a screenshot with a style sheet of its own, which the content security
-        // policy of the site refuses (style-src 'self'): the caret is left as it is, and nothing is injected.
         await page.ScreenshotAsync(new() { Path = path, Caret = ScreenshotCaret.Initial, Animations = ScreenshotAnimations.Allow });
         TestContext.AddTestAttachment(path);
     }
