@@ -17,4 +17,7 @@ builder.Services.AddSingleton(GameContent.LoadEmbedded());
 // The garden: the game that is playing in this tab.
 builder.Services.AddSingleton<GameSession>();
 
+// The story: the title and the days of creation.
+builder.Services.AddSingleton<StorySession>();
+
 await builder.Build().RunAsync();

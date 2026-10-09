@@ -1,0 +1,172 @@
+@page "/creation"
+@using AdamEve.Client.Game
+@using AdamEve.Core.Story
+@implements IDisposable
+@inject GameSession Session
+@inject StorySession Story
+@inject ContentLoadResult ContentCheck
+@inject NavigationManager Navigation
+
+<PageTitle>@GameInfo.Title</PageTitle>
+
+@* Beats B1 to B7: the days of creation, Genesis 1:1 to 2:3 (design, section 2.2). The page shows what the story
+   machine answers and nothing of its own: the picture of the day, the Scripture card of the verse, and two controls.
+   The player turns the page, and once a day reveals what the next verse tells; the player makes nothing.
+   Every word here but the labels of the controls is a Scripture card. The data- attributes are what the tests read. *@
+<div id="creation" class="creation @Session.TextClass" data-testid="creation" tabindex="-1" @ref="root" @onkeydown="KeyDown"
+     data-chapter="@Story.State.Chapter" data-beat="@Story.State.Beat" data-card="@Story.Card?.Ref.ToString()"
+     data-awaits-reveal="@(Story.AwaitsReveal ? "true" : "false")" data-concealment="@Story.Concealment" data-ready="@(ready ? "true" : "false")">
+    <h1 class="visually-hidden">@GameInfo.Title</h1>
+
+    <div class="creation-scene" data-testid="scene" @onclick="SceneTapped">
+        <svg class="scene-picture" viewBox="0 0 @CreationPicture.Width @CreationPicture.Height" aria-hidden="true" focusable="false">
+            @foreach (var layer in Story.Layers)
+            {
+                <g @key="layer" class="scene-layer layer-@layer" data-layer="@layer">
+                    @if (layer == SceneLayer.Figures)
+                    {
+                        @* Two figures of light, far away (Genesis 1:26 to 1:28): the rigs, in one pale colour. *@
+                        @for (var index = 0; index < Story.FarFigures.Count; index++)
+                        {
+                            var figure = Story.FarFigures[index];
+                            <g transform="translate(@(index == 0 ? 176 : 190) 152) scale(0.3)" data-figure="@index" data-concealment="@figure.Concealment">@SvgShapes.Of(figure.Shapes)</g>
+                        }
+                    }
+                    else
+                    {
+                        @SvgShapes.Of(CreationPicture.ShapesOf(layer))
+                    }
+                </g>
+            }
+        </svg>
+    </div>
+
+    <div class="creation-panel">
+        <div class="creation-card" aria-live="polite" @onclick="CardTapped">
+            @if (Story.Card is { } verse && ContentCheck.IsLoaded)
+            {
+                <ScriptureCard @key="verse.Ref" Verse="verse" Speaker="Story.Speaker" Glossary="ContentCheck.Content.Glossary" OnGlossaryWord="Define" />
+            }
+        </div>
+        <div class="creation-controls">
+            @if (Story.SkipOffered)
+            {
+                <button type="button" class="game-button" data-testid="skip" @onclick="Skip" @onkeydown:stopPropagation>@GameText.Skip</button>
+            }
+            <button type="button" class="game-button creation-primary" data-testid="primary" data-action="@(Story.AwaitsReveal ? "reveal" : "turn")" @onclick="Primary" @onkeydown:stopPropagation>@(Story.AwaitsReveal ? GameText.Reveal : GameText.TurnThePage)</button>
+        </div>
+    </div>
+
+    <NarrationPanel Entry="defined" OnClose="PutAway" />
+</div>
+
+@code {
+    private ElementReference root;
+    private GlossaryEntry? defined;
+    private bool ready;
+
+    protected override void OnInitialized()
+    {
+        Session.LoadSettings();
+        Session.Changed += Render;
+        Story.Changed += Render;
+        if (Story.State.Chapter != StoryChapter.Creation)
+        {
+            // A reload, or a link to this page: the saved game goes on, from the beginning of its beat.
+            Story.Resume();
+        }
+
+        Leave();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && Story.State.Chapter == StoryChapter.Creation)
+        {
+            // The keys of the page reach it from the start: Space and Enter are the player's one action.
+            await root.FocusAsync();
+            ready = true;
+            StateHasChanged();
+        }
+    }
+
+    public void Dispose()
+    {
+        Session.Changed -= Render;
+        Story.Changed -= Render;
+    }
+
+    private void Render() => _ = InvokeAsync(StateHasChanged);
+
+    private void KeyDown(KeyboardEventArgs key)
+    {
+        if (key.Repeat)
+        {
+            return;
+        }
+
+        if (key.Key is "Enter" or " ")
+        {
+            Primary();
+        }
+        else if (key.Key == "1" && Story.SkipOffered)
+        {
+            Skip();
+        }
+    }
+
+    // The player's one action: the gesture of the day when the story waits for it, the next card otherwise.
+    private void Primary()
+    {
+        defined = null;
+        if (Story.AwaitsReveal)
+        {
+            Story.Reveal();
+        }
+        else
+        {
+            Story.TurnThePage();
+        }
+
+        Leave();
+    }
+
+    private void SceneTapped()
+    {
+        if (Story.AwaitsReveal)
+        {
+            Primary();
+        }
+    }
+
+    private void CardTapped()
+    {
+        if (!Story.AwaitsReveal && Story.Card is not null)
+        {
+            Primary();
+        }
+    }
+
+    private void Skip()
+    {
+        Story.Skip();
+        Leave();
+    }
+
+    // The days of creation are over, or there is no game in them: the garden, or the title.
+    private void Leave()
+    {
+        if (Story.State.Chapter == StoryChapter.Formation)
+        {
+            Navigation.NavigateTo("garden", replace: true);
+        }
+        else if (Story.State.Chapter != StoryChapter.Creation)
+        {
+            Navigation.NavigateTo(string.Empty, replace: true);
+        }
+    }
+
+    private void Define(GlossaryEntry entry) => defined = entry;
+
+    private void PutAway() => defined = null;
+}

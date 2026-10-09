@@ -5,7 +5,8 @@ namespace AdamEve.AcceptanceTests;
 
 /// <summary>
 /// The title page on the three device profiles of the design: a desktop with a keyboard, a phone with Chromium and
-/// touch, a phone with WebKit and touch. All headless.
+/// touch, a phone with WebKit and touch. All headless. Since slice S4 it is the title screen of the design (beat
+/// B0), with the character select; it no longer says "Coming soon".
 /// </summary>
 [TestFixture]
 public class TitlePageTests : PlaywrightTest
@@ -35,7 +36,8 @@ public class TitlePageTests : PlaywrightTest
         try
         {
             await Expect(page.GetByTestId("title")).ToHaveTextAsync(Title);
-            await Expect(page.GetByTestId("status")).ToHaveTextAsync("Coming soon");
+            await Expect(page.GetByTestId("status")).ToHaveCountAsync(0);
+            await Expect(page.GetByTestId("character-select")).ToBeVisibleAsync();
             await Expect(page).ToHaveTitleAsync(Title);
         }
         catch (PlaywrightException exception) when (errors.Count > 0)

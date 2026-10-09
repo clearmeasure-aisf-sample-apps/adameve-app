@@ -1,5 +1,6 @@
 using System.Reflection;
 using AdamEve.Core.Saves;
+using AdamEve.Core.Story;
 using AdamEve.Core.World;
 
 namespace AdamEve.UnitTests.Garden;
@@ -25,7 +26,7 @@ public class SaveCodecTests
     {
         var json = SaveCodec.Write(new SaveGame { Character = PlayerCharacter.Adam, TileX = 26, TileY = 22, Facing = Facing.S });
 
-        json.ShouldBe("""{"schemaVersion":1,"character":"Adam","tileX":26,"tileY":22,"facing":"S"}""");
+        json.ShouldBe("""{"schemaVersion":1,"character":"Adam","tileX":26,"tileY":22,"facing":"S","chapter":"Formation","beat":"B8","creationWatched":false}""");
     }
 
     [Test]
@@ -65,6 +66,41 @@ public class SaveCodecTests
         var result = SaveCodec.Read(json, Map());
 
         result.ShouldBe(new SaveReadResult(SaveState.Corrupt, null));
+    }
+
+    [TestCase("""{"schemaVersion":1,"character":"Adam","tileX":0,"tileY":0,"facing":"S","chapter":"Title","beat":"B0"}""", Description = "the title is not saved")]
+    [TestCase("""{"schemaVersion":1,"character":"Adam","tileX":0,"tileY":0,"facing":"S","chapter":"Creation","beat":"B8"}""", Description = "a beat of another chapter")]
+    [TestCase("""{"schemaVersion":1,"character":"Adam","tileX":0,"tileY":0,"facing":"S","chapter":"Formation","beat":"B3"}""", Description = "a beat of another chapter")]
+    [TestCase("""{"schemaVersion":1,"character":"Adam","tileX":0,"tileY":0,"facing":"S","chapter":"Exodus","beat":"B1"}""", Description = "not a chapter of the list")]
+    [TestCase("""{"schemaVersion":1,"character":"Adam","tileX":0,"tileY":0,"facing":"S","chapter":"Creation","beat":"B77"}""", Description = "not a beat of the list")]
+    [TestCase("""{"schemaVersion":1,"character":"Adam","tileX":0,"tileY":0,"facing":"S","chapter":"Creation","beat":"B1","creationWatched":"yes"}""")]
+    public void Read_ASavedGameWhoseStoryCannotBe_ShouldBeCorrupt(string json)
+    {
+        var result = SaveCodec.Read(json, Map());
+
+        result.ShouldBe(new SaveReadResult(SaveState.Corrupt, null));
+    }
+
+    [Test]
+    public void Read_ASavedGameOfSliceS2WithoutAChapter_ShouldStandAfterTheDaysOfCreationWithNothingToSkip()
+    {
+        var json = """{"schemaVersion":1,"character":"Woman","tileX":1,"tileY":1,"facing":"E"}""";
+
+        var result = SaveCodec.Read(json, Map());
+
+        result.State.ShouldBe(SaveState.Loaded);
+        result.Save.ShouldBe(new SaveGame { Character = PlayerCharacter.Woman, TileX = 1, TileY = 1, Facing = Facing.E, Chapter = StoryChapter.Formation, Beat = StoryBeat.B8, CreationWatched = false });
+    }
+
+    [Test]
+    public void Read_ASavedGameInADayOfCreation_ShouldKeepItsBeatAndWhetherTheDaysWereWatched()
+    {
+        var save = new SaveGame { Character = PlayerCharacter.Adam, TileX = 1, TileY = 1, Chapter = StoryChapter.Creation, Beat = StoryBeat.B5, CreationWatched = true };
+
+        var result = SaveCodec.Read(SaveCodec.Write(save), Map());
+
+        result.State.ShouldBe(SaveState.Loaded);
+        result.Save.ShouldBe(save);
     }
 
     [Test]

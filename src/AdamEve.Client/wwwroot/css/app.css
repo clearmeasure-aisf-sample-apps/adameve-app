@@ -389,3 +389,256 @@ a {
     border: 0;
     white-space: nowrap;
 }
+
+/* Who speaks in the verse of a Scripture card: a small label of the card (design, section 1). */
+.scripture-speaker {
+    margin: 0 0 0.25rem;
+    font-size: 0.85em;
+    font-style: normal;
+    font-variant: small-caps;
+    letter-spacing: 0.04em;
+}
+
+/* The title: beat B0. The size of the text is the player's setting, here as in the garden. */
+.title-screen {
+    font-size: 1.25rem;
+    line-height: 1.5;
+}
+
+.text-s {
+    font-size: 1.125rem;
+}
+
+.text-m {
+    font-size: 1.25rem;
+}
+
+.text-l {
+    font-size: 1.5rem;
+}
+
+.text-xl {
+    font-size: 1.75rem;
+}
+
+.character-select {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: center;
+    margin: 1rem 0;
+}
+
+.character-choice {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 9.5rem;
+    max-width: 100%;
+    min-height: 3rem;
+    margin: 0;
+    padding: 0.75rem 0.5rem;
+    border: 2px solid #1f2a1c;
+    border-radius: 0.5rem;
+    color: #1f2a1c;
+    background: #ffffff;
+    font: inherit;
+    line-height: 1.25;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.character-choice:focus-visible,
+.title-link:focus-visible,
+.title-screen .game-choice input:focus-visible {
+    outline: 3px solid #1d4d2b;
+    outline-offset: 2px;
+}
+
+.figure {
+    display: block;
+    width: 6rem;
+    height: 7.5rem;
+}
+
+.character-name {
+    font-weight: 600;
+}
+
+.character-note {
+    font-size: 0.8em;
+}
+
+.title-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 3rem;
+}
+
+.title-settings {
+    margin: 1rem 0;
+}
+
+/* The days of creation: beats B1 to B7. The picture of the day above, the Scripture card and the controls below.
+   The picture holds no words; the only words are the card's and the labels of the controls. */
+.creation {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    overflow: hidden;
+    color: #1f2a1c;
+    background: #0b0e1a;
+    font-family: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.5;
+    text-align: left;
+    touch-action: manipulation;
+}
+
+.creation:focus {
+    outline: none;
+}
+
+.creation-scene {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    cursor: pointer;
+    container-type: size;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* The picture keeps its shape (8 to 5) and is as large as the room above the card allows; what lies beyond its
+   edge is not drawn. */
+.scene-picture {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: block;
+    width: min(100cqw, 160cqh);
+    height: min(100cqh, 62.5cqw);
+    margin: auto;
+    overflow: hidden;
+}
+
+.creation-panel {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    max-height: 70vh;
+    padding: 0.5rem 0.75rem;
+    background: #f6f3e7;
+}
+
+.creation-card {
+    min-height: 0;
+    overflow: auto;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.creation-card .scripture-card {
+    margin: 0 0 0.5rem;
+    font-size: 1em;
+}
+
+.creation-card .scripture-reference {
+    font-size: 0.85em;
+}
+
+.creation-controls {
+    display: flex;
+    flex: none;
+    gap: 0.75rem;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.creation .game-button {
+    touch-action: manipulation;
+}
+
+.creation .game-button:focus-visible {
+    outline-color: #1d4d2b;
+}
+
+.creation .narration-panel {
+    font-size: 0.9em;
+}
+
+/* What a verse tells comes into the picture softly; the light of Genesis 1:3 spreads. The presence of God is a
+   warm light that moves, shown while his voice speaks; he is never a figure. */
+.scene-layer {
+    animation: scene-appear 1.2s ease-out both;
+}
+
+.layer-Light {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: scene-spread 2.4s ease-out both;
+}
+
+.layer-Presence {
+    animation: scene-appear 1.2s ease-out both, presence-drift 7s ease-in-out 1.2s infinite alternate;
+}
+
+.layer-Presence ellipse {
+    opacity: 0.5;
+}
+
+@keyframes scene-appear {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes scene-spread {
+    from {
+        opacity: 0.4;
+        transform: scale(0.05);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes presence-drift {
+    from {
+        transform: translateX(-14px);
+    }
+
+    to {
+        transform: translateX(14px);
+    }
+}
+
+/* The seventh day is still. */
+.creation[data-beat="B7"] .scene-layer {
+    animation: none;
+}
+
+/* Reduced motion: everything is shown at once and nothing moves. */
+@media (prefers-reduced-motion: reduce) {
+    .scene-layer,
+    .layer-Light,
+    .layer-Presence {
+        animation: none;
+    }
+}

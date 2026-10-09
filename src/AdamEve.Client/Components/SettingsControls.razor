@@ -1,0 +1,44 @@
+@using AdamEve.Client.Game
+@using AdamEve.Core.Saves
+@implements IDisposable
+@inject GameSession Session
+
+@* The settings of the player (design, section 2.2, beat B0, and section 5.7): the size of the text and the sound.
+   The title and the garden show the same controls, and both keep what is chosen. *@
+<h2 class="game-panel-title">@GameText.Settings</h2>
+<fieldset class="game-setting">
+    <legend>@GameText.TextSize</legend>
+    @foreach (var (size, label) in Sizes)
+    {
+        <label class="game-choice">
+            <input type="radio" name="text-size" data-testid="text-size-@size" checked="@(Session.Settings.TextSize == size)" @onchange="() => Session.SetTextSize(size)" />
+            <span>@label</span>
+        </label>
+    }
+</fieldset>
+<label class="game-choice game-setting">
+    <input type="checkbox" data-testid="sound" checked="@Session.Settings.Sound" @onchange="SoundChanged" />
+    <span>@GameText.Sound</span>
+</label>
+
+@code {
+    private static readonly (TextSize Size, string Label)[] Sizes =
+    [
+        (TextSize.S, GameText.TextSizeSmall),
+        (TextSize.M, GameText.TextSizeMedium),
+        (TextSize.L, GameText.TextSizeLarge),
+        (TextSize.XL, GameText.TextSizeExtraLarge),
+    ];
+
+    protected override void OnInitialized()
+    {
+        Session.LoadSettings();
+        Session.Changed += Render;
+    }
+
+    public void Dispose() => Session.Changed -= Render;
+
+    private void Render() => _ = InvokeAsync(StateHasChanged);
+
+    private void SoundChanged(ChangeEventArgs change) => Session.SetSound(change.Value is true);
+}

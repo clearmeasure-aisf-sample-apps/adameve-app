@@ -1,11 +1,66 @@
 @page "/"
+@using AdamEve.Client.Game
+@using AdamEve.Core.Rigs
+@using AdamEve.Core.Saves
+@using AdamEve.Core.Story
+@implements IDisposable
+@inject GameSession Session
+@inject StorySession Story
+@inject NavigationManager Navigation
 
 <PageTitle>@GameInfo.Title</PageTitle>
 
-<h1 data-testid="title">@GameInfo.Title</h1>
+@* Beat B0: the title and the character select (design, section 2.2). The two figures are the rigs of the garden,
+   standing, each judged by the M1 check; the verdict of what is drawn is on the root, as in the garden. *@
+<div id="title" class="title-screen @Session.TextClass" data-testid="title-screen" data-chapter="@nameof(StoryChapter.Title)" data-beat="@nameof(StoryBeat.B0)" data-concealment="@StillFigure.VerdictOf(Story.SelectFigures)">
+    <h1 data-testid="title">@GameInfo.Title</h1>
 
-<p data-testid="status">Coming soon</p>
+    <div class="character-select" data-testid="character-select">
+        @for (var index = 0; index < Story.SelectFigures.Count; index++)
+        {
+            var character = (PlayerCharacter)index;
+            var figure = Story.SelectFigures[index];
+            <button type="button" class="character-choice" data-testid="choose-@character" @onclick="() => Choose(character)">
+                <svg class="figure" viewBox="-24 -54 48 60" aria-hidden="true" focusable="false" data-testid="figure-@character" data-concealment="@figure.Concealment">@SvgShapes.Of(figure.Shapes)</svg>
+                <span class="character-name">@GameText.CharacterName(character)</span>
+                @if (character == PlayerCharacter.Woman)
+                {
+                    <span class="character-note" data-testid="woman-note">@GameText.CharacterWomanNote</span>
+                }
+            </button>
+        }
+    </div>
 
-<p><a href="garden" data-testid="garden-link">@GameText.GardenLink</a></p>
+    @if (Story.SavedChapter is { } chapter)
+    {
+        <p><a class="title-link" href="@(chapter == StoryChapter.Creation ? "creation" : "garden")" data-testid="continue">@GameText.Continue</a></p>
+    }
 
-<p><a href="reader" data-testid="reader-link">@GameText.ReaderLink</a></p>
+    <section class="title-settings" data-testid="settings">
+        <SettingsControls />
+    </section>
+
+    <p><a class="title-link" href="reader" data-testid="reader-link">@GameText.ReaderLink</a></p>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Session.LoadSettings();
+        Session.Changed += Render;
+        Story.OpenTitle();
+    }
+
+    public void Dispose() => Session.Changed -= Render;
+
+    private void Render() => _ = InvokeAsync(StateHasChanged);
+
+    private void Choose(PlayerCharacter character)
+    {
+        Story.Choose(character);
+        if (Story.State.Chapter == StoryChapter.Creation)
+        {
+            Navigation.NavigateTo("creation");
+        }
+    }
+}

@@ -1,9 +1,11 @@
 using AdamEve.Content.Scripture;
+using AdamEve.Core.Saves;
+using AdamEve.Core.Story;
 
 namespace AdamEve.Content;
 
 /// <summary>
-/// Every label the game itself wrote, for the title page, the reader and the garden. Game-written text: Jeffrey Palermo reviews each string
+/// Every label the game itself wrote, for the title, the days of creation, the reader and the garden. Game-written text: Jeffrey Palermo reviews each string
 /// before it ships, and <c>content/README.md</c> lists them all for that review (a unit test keeps the list whole).
 /// None of it is Scripture.
 /// </summary>
@@ -27,8 +29,29 @@ public static class GameText
     /// <summary>What a player reads when the start-up content check fails (design, section 7.3).</summary>
     public const string ContentFailure = "The game's text could not be loaded";
 
-    /// <summary>The link from the title page to the garden.</summary>
-    public const string GardenLink = "Walk in the garden";
+    /// <summary>The character select: the man (design, decision D3).</summary>
+    public const string CharacterAdam = "Adam";
+
+    /// <summary>The character select: the woman, as in the game's title (design, decision D3).</summary>
+    public const string CharacterWoman = "The woman";
+
+    /// <summary>The character select: the small line beneath "The woman" (design, decision D3).</summary>
+    public const string CharacterWomanNote = "named Eve in Genesis 3:20";
+
+    /// <summary>The title: the link that goes on with the saved game.</summary>
+    public const string Continue = "Continue";
+
+    /// <summary>The speaker label of a Scripture card of chapter 1 on which God speaks (design, section 1).</summary>
+    public const string SpeakerGod = "God";
+
+    /// <summary>The days of creation: the control of the one gesture of a day. The player reveals what God made.</summary>
+    public const string Reveal = "Reveal";
+
+    /// <summary>The days of creation: the control that shows the next Scripture card.</summary>
+    public const string TurnThePage = "Turn the page";
+
+    /// <summary>The days of creation: the control that leaves them, offered after a first completion.</summary>
+    public const string Skip = "Skip";
 
     /// <summary>The menu button of the garden.</summary>
     public const string Menu = "Menu";
@@ -85,6 +108,18 @@ public static class GameText
         "central-glade" => CentralGlade,
         "spring-of-eden" => SpringOfEden,
         "pison-meadows" => PisonMeadows,
+        _ => string.Empty,
+    };
+
+    /// <summary>The name on the character select.</summary>
+    /// <param name="character">The character.</param>
+    public static string CharacterName(PlayerCharacter character) => character == PlayerCharacter.Adam ? CharacterAdam : CharacterWoman;
+
+    /// <summary>The speaker label of a Scripture card.</summary>
+    /// <param name="speaker">Who speaks in the verse.</param>
+    public static string SpeakerName(StorySpeaker speaker) => speaker switch
+    {
+        StorySpeaker.God => SpeakerGod,
         _ => string.Empty,
     };
 

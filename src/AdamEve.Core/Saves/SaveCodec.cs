@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using AdamEve.Core.Story;
 using AdamEve.Core.World;
 
 namespace AdamEve.Core.Saves;
@@ -32,7 +33,7 @@ public static class SaveCodec
 
     /// <summary>
     /// Reads a saved game. It is read only when it is JSON of a version this build knows, every choice in it is one
-    /// of the fixed lists, and its tile is one a character may stand on.
+    /// of the fixed lists, its beat is one of its chapter, and its tile is one a character may stand on.
     /// </summary>
     /// <param name="json">The text kept under <see cref="SaveKey"/>; null or empty when there is none.</param>
     /// <param name="map">The map of the garden.</param>
@@ -51,6 +52,7 @@ public static class SaveCodec
                 && save.SchemaVersion == CurrentVersion
                 && Enum.IsDefined(save.Character)
                 && Enum.IsDefined(save.Facing)
+                && StoryMachine.IsBeatOf(save.Chapter, save.Beat)
                 && map.IsWalkable(new TilePos(save.TileX, save.TileY)))
             {
                 return new SaveReadResult(SaveState.Loaded, save);

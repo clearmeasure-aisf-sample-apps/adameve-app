@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using AdamEve.Content.Garden;
 using AdamEve.Content.Scripture;
+using AdamEve.Core.Story;
 
 namespace AdamEve.Content;
 
@@ -28,7 +29,8 @@ public sealed class GameContent
 
     /// <summary>
     /// Loads the content from bytes and checks it: the SHA-256 of the canonical text is the pinned value, the text
-    /// parses, the glossary parses and each of its words occurs in at least one verse; and the embedded garden
+    /// parses, the glossary parses and each of its words occurs in at least one verse; the days of creation show
+    /// the opening verses of the text in order; and the embedded garden
     /// loads (<see cref="GardenContent.Load"/>).
     /// </summary>
     /// <param name="scripture">The bytes of the canonical text.</param>
@@ -49,6 +51,13 @@ public sealed class GameContent
         if (strays.Count > 0)
         {
             throw new ContentFormatException($"The glossary word \"{strays[0].Term}\" occurs in no verse.");
+        }
+
+        // The story: the days of creation show the first verses of the text, each once and in order.
+        var opening = document.Verses.Take(CreationStory.Cards.Count).Select(verse => new ScriptureRef(verse.Ref.Chapter, verse.Ref.Number));
+        if (!opening.SequenceEqual(CreationStory.Cards))
+        {
+            throw new ContentFormatException("The days of creation do not show the opening verses of the canonical text in order.");
         }
 
         return new GameContent(document, words, GardenContent.LoadEmbedded());

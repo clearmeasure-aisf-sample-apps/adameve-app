@@ -1,3 +1,4 @@
+using AdamEve.Core.Story;
 using AdamEve.Core.World;
 
 namespace AdamEve.Core.Saves;
@@ -32,6 +33,43 @@ public sealed record SaveGame
 
     /// <summary>The way the player faces.</summary>
     public Facing Facing { get; init; } = Facing.S;
+
+    /// <summary>
+    /// The chapter of the story. A saved game of slice S2 has none: it was made walking the garden, which stands
+    /// after the days of creation. (Settable, like the two properties after it, so that a saved game without the
+    /// property keeps this value when it is read: the generated reader gives an init-only property the default of
+    /// its type instead.)
+    /// </summary>
+    public StoryChapter Chapter { get; set; } = StoryChapter.Formation;
+
+    /// <summary>The beat of the story. It is resumed from its beginning.</summary>
+    public StoryBeat Beat { get; set; } = StoryBeat.B8;
+
+    /// <summary>Whether the days of creation were watched to the end once: only then may they be skipped.</summary>
+    public bool CreationWatched { get; set; }
+
+    /// <summary>The saved game of a state of the story, with the player on a tile.</summary>
+    /// <param name="state">The state. Its character is chosen.</param>
+    /// <param name="tile">The player's tile.</param>
+    /// <exception cref="ArgumentException">The state is at the title: no character is chosen yet.</exception>
+    public static SaveGame Of(StoryState state, TilePos tile)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        if (state.Character is not { } character || !StoryMachine.IsBeatOf(state.Chapter, state.Beat))
+        {
+            throw new ArgumentException("The title is not saved: a saved game begins when a character is chosen.", nameof(state));
+        }
+
+        return new SaveGame
+        {
+            Character = character,
+            TileX = tile.X,
+            TileY = tile.Y,
+            Chapter = state.Chapter,
+            Beat = state.Beat,
+            CreationWatched = state.CreationWatched,
+        };
+    }
 }
 
 /// <summary>The size of the game's text (design, section 1).</summary>

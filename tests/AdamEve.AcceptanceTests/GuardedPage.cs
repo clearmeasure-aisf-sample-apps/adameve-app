@@ -24,10 +24,12 @@ internal sealed class GuardedPage : IAsyncDisposable
 
     public List<string> RequestsOutsideTheOrigin { get; } = [];
 
-    public static async Task<GuardedPage> OpenAsync(IPlaywright playwright, string device, string engine)
+    public static async Task<GuardedPage> OpenAsync(IPlaywright playwright, string device, string engine, bool reducedMotion = false)
     {
         var browser = await playwright[engine].LaunchAsync();
-        var context = await browser.NewContextAsync(playwright.Devices[device]);
+        // The player's setting "reduce motion", as the browser reports it to the page (prefers-reduced-motion).
+        var options = new BrowserNewContextOptions(playwright.Devices[device]) { ReducedMotion = reducedMotion ? ReducedMotion.Reduce : ReducedMotion.NoPreference };
+        var context = await browser.NewContextAsync(options);
         var page = await context.NewPageAsync();
         var guarded = new GuardedPage(browser, context, page);
         var origin = new Uri(Site.BaseAddress).GetLeftPart(UriPartial.Authority);
