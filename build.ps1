@@ -57,6 +57,12 @@ function Init {
         Stop-Build 'The module PSScriptAnalyzer is not installed: Install-Module PSScriptAnalyzer -Scope CurrentUser'
     }
 
+    # The release names the image and the package MAJOR.MINOR.<run number> (release.yml reads the two numbers from
+    # build.yml). An integration build that built another version would keep an image the release cannot find.
+    if ($ranBy -eq 'integration' -and $env:GITHUB_RUN_NUMBER -and $version -notmatch "^\d+\.\d+\.$([regex]::Escape($env:GITHUB_RUN_NUMBER))`$") {
+        Stop-Build "The integration build of run $($env:GITHUB_RUN_NUMBER) was asked for version $($version): the version of a run ends with its number"
+    }
+
     foreach ($directory in $buildDir, $testResultsDir) {
         if (Test-Path -LiteralPath $directory) { Remove-Item -LiteralPath $directory -Recurse -Force }
         New-Item -ItemType Directory -Path $directory | Out-Null

@@ -39,6 +39,9 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
 
+# build.ps1 is dot-sourced into this scope and sets a variable "version" of its own there (its default, 1.0.0),
+# which is this script's parameter by another spelling: the version asked for is kept before that.
+$requestedVersion = $Version
 . (Join-Path $PSScriptRoot 'build.ps1')
 
-Build -Version $Version -CI:$CI
+Build -Version $requestedVersion -CI:$CI
