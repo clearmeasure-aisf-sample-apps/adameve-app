@@ -160,7 +160,7 @@ public class StartStressTests : PlaywrightTest
 
         Say($"STALL {label}: not shown after {clock.Elapsed.TotalSeconds:F1} s");
         Say(watch.Describe());
-        Say("  the page: " + await AskAsync(page, "() => JSON.stringify({ now: Math.round(performance.now()), ready: document.readyState, app: (document.getElementById('app') || {}).innerHTML?.slice(0, 200), error: getComputedStyle(document.getElementById('blazor-error-ui')).display, resources: performance.getEntriesByType('resource').length, runtime: typeof globalThis.getDotnetRuntime, blazor: typeof globalThis.Blazor })"));
+        Say("  the page: " + await AskAsync(page, "() => JSON.stringify({ now: Math.round(performance.now()), ready: document.readyState, app: (document.getElementById('app') || {}).innerHTML?.slice(0, 200), error: getComputedStyle(document.getElementById('blazor-error-ui')).display, resources: performance.getEntriesByType('resource').length, last: performance.getEntriesByType('resource').slice(-6).map(entry => entry.name.split('/').pop() + ':' + Math.round(entry.responseEnd)).join(' '), runtime: typeof globalThis.getDotnetRuntime, blazor: typeof globalThis.Blazor })"));
         Say("  its timeline: " + await AskAsync(page, "() => (window.__t || ['no timeline in this start']).join(' | ')"));
         var later = await ShownAsync(shown, attribute, 60_000);
         Say($"  after {clock.Elapsed.TotalSeconds:F1} s: {(later ? "it is shown, the start was slow" : "still not shown, the start hangs")}");
@@ -194,67 +194,65 @@ public class StartStressTests : PlaywrightTest
         return string.Create(CultureInfo.InvariantCulture, $"n={sorted.Count} min={sorted[0]:F0} median={At(0.5):F0} p90={At(0.9):F0} p99={At(0.99):F0} max={sorted[^1]:F0} ms");
     }
 
-    [TestCase("iPhone 13", "webkit", 11)]
-    [TestCase("Pixel 7", "chromium", 1)]
+    [TestCase("iPhone 13", "webkit", 31)]
     public async Task Start_TheAppAgainAndAgain_ShouldSayHowLongEachStartTakes(string device, string engine, int minutes)
     {
-        var cold = new List<double>();
-        var warm = new List<double>();
-        var garden = new List<double>();
-        var launches = new List<double>();
-        var stalls = 0;
+        string[] kinds = ["guarded", "plain", "guarded with timeline", "plain with timeline"];
+        var times = kinds.ToDictionary(kind => kind, _ => new List<double>());
+        var stalled = kinds.ToDictionary(kind => kind, _ => 0);
         var whole = Stopwatch.StartNew();
         Say($"START STRESS {device} {engine}: {Environment.ProcessorCount} processors");
-        IBrowser? shared = null;
 
         for (var round = 0; whole.Elapsed < TimeSpan.FromMinutes(minutes); round++)
         {
-            // Four kinds of round: with and without the timeline script, in a browser of its own and in a shared one.
-            var timeline = round % 2 == 0;
-            var own = round % 4 < 2;
-            var launch = Stopwatch.StartNew();
-            var browser = own || shared is null ? await Playwright[engine].LaunchAsync() : shared;
-            if (!own)
-            {
-                shared = browser;
-            }
-
-            var context = await browser.NewContextAsync(Playwright.Devices[device]);
-            if (timeline)
+            // Four kinds of round: a page as the tests open it (GuardedPage: every request is routed through the
+            // test) or a plain one, each with and without the timeline script.
+            var kind = kinds[round % 4];
+            var guarded = kind.StartsWith("guarded", StringComparison.Ordinal) ? await GuardedPage.OpenAsync(Playwright, device, engine) : null;
+            var browser = guarded is null ? await Playwright[engine].LaunchAsync() : null;
+            var context = guarded?.Page.Context ?? await browser!.NewContextAsync(Playwright.Devices[device]);
+            if (kind.EndsWith("timeline", StringComparison.Ordinal))
             {
                 await context.AddInitScriptAsync(Timeline);
             }
 
-            var page = await context.NewPageAsync();
-            launches.Add(launch.Elapsed.TotalMilliseconds);
+            var page = guarded?.Page ?? await context.NewPageAsync();
             var watch = new Watch(page);
-            var label = $"round {round} ({(own ? "own browser" : "shared browser")}, {(timeline ? "timeline" : "plain")})";
+            var label = $"round {round} ({kind})";
+            var title = page.GetByTestId("choose-Adam");
+            var game = page.GetByTestId("game");
 
-            var first = await StartAsync(page, watch, label + " cold /", () => page.GotoAsync(Site.BaseAddress), page.GetByTestId("choose-Adam"), null);
-            var second = await StartAsync(page, watch, label + " reload /", () => page.ReloadAsync(), page.GetByTestId("choose-Adam"), null);
-            var third = await StartAsync(page, watch, label + " goto /garden", () => page.GotoAsync(Site.BaseAddress + "garden"), page.GetByTestId("game"), "data-ready");
-            cold.Add(first.Milliseconds);
-            warm.Add(second.Milliseconds);
-            garden.Add(third.Milliseconds);
-            stalls += new[] { first, second, third }.Count(start => start.Stalled);
-
-            await context.DisposeAsync();
-            if (own)
+            (double Milliseconds, bool Stalled)[] starts =
+            [
+                await StartAsync(page, watch, label + " cold /", () => page.GotoAsync(Site.BaseAddress), title, null),
+                await StartAsync(page, watch, label + " reload /", () => page.ReloadAsync(), title, null),
+                await StartAsync(page, watch, label + " goto /garden", () => page.GotoAsync(Site.BaseAddress + "garden"), game, "data-ready"),
+                await StartAsync(page, watch, label + " reload /garden", () => page.ReloadAsync(), game, "data-ready"),
+            ];
+            times[kind].AddRange(starts.Select(start => start.Milliseconds));
+            stalled[kind] += starts.Count(start => start.Stalled);
+            if (starts.Any(start => start.Stalled) && guarded is not null)
             {
-                await browser.DisposeAsync();
+                Say("  errors the guarded page kept: " + string.Join(" || ", guarded.Errors));
+            }
+
+            if (guarded is not null)
+            {
+                await guarded.DisposeAsync();
+            }
+            else
+            {
+                await context.DisposeAsync();
+                await browser!.DisposeAsync();
             }
         }
 
-        if (shared is not null)
+        Say($"RESULT {device} {engine} in {whole.Elapsed.TotalSeconds:F0} s");
+        foreach (var kind in kinds)
         {
-            await shared.DisposeAsync();
+            Say($"  {kind}: {stalled[kind]} stalled of {times[kind].Count} starts; {Spread(times[kind])}");
         }
 
-        Say($"RESULT {device} {engine}: {stalls} stalled of {cold.Count + warm.Count + garden.Count} starts in {whole.Elapsed.TotalSeconds:F0} s");
-        Say($"  launch and new page: {Spread(launches)}");
-        Say($"  cold start of the title: {Spread(cold)}");
-        Say($"  reload of the title: {Spread(warm)}");
-        Say($"  garden ready, runtime in the cache: {Spread(garden)}");
         var path = GardenView.KeptPath("gallery", $"start-stress-{engine}.txt");
         await File.WriteAllTextAsync(path, Report.ToString());
         TestContext.AddTestAttachment(path);

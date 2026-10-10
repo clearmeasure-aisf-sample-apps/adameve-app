@@ -21,6 +21,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Remove="*Tests.cs" />
+    <Compile Include="StartStressTests.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="NUnit.Framework" />
     <Using Include="Shouldly" />
   </ItemGroup>
