@@ -35,7 +35,9 @@ jobs:
   build:
     name: Integration build
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 126 browser tests on three device profiles, with WebGL drawn in software: a run takes about 20 minutes and
+    # was cancelled at 30 once (2026-10-10).
+    timeout-minutes: 45
     steps:
       - name: Check out, with the history the build facts count
         uses: actions/checkout@v4
