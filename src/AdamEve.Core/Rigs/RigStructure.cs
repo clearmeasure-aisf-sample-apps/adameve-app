@@ -18,6 +18,18 @@ public static class RigStructure
     /// <summary>The colour of the hair, and of the eyes (design, decision D7).</summary>
     public const int Hair = 0x2B1D16;
 
+    /// <summary>
+    /// The colour of a lock of hair that catches a little light: the same dark hair (design, decision D7), one step
+    /// lighter. Added on 2026-10-10 for the second art pass, so that long hair reads as locks and not as one panel.
+    /// </summary>
+    public const int HairLock = 0x43301F;
+
+    /// <summary>The colour of the sheen on dark hair: a thin strand along a parting or a lock, and nothing wider.</summary>
+    public const int HairSheen = 0x5E452D;
+
+    /// <summary>The colour of the mouth: a small friendly line on the face, a warm tone darker than the skin.</summary>
+    public const int Mouth = 0xA5604A;
+
     /// <summary>The colour of the fig-leaf apron (Genesis 3:7).</summary>
     public const int ApronGreen = 0x4E9A4A;
 
@@ -38,9 +50,13 @@ public static class RigStructure
 
     /// <summary>
     /// The bone on which hair that moves hangs: a bone of the head itself, so that the hair is still bound to the
-    /// head and goes where it goes.
+    /// head and goes where it goes. A rig may have more than one, so that locks move apart from each other: each
+    /// has a name that begins with this one and hangs on the head (<see cref="IsHairBone"/>).
     /// </summary>
     public const string HairBone = "hair";
+
+    /// <summary>The prefix of the id of the two halves of the mouth.</summary>
+    public const string MouthPrefix = "mouth";
 
     /// <summary>The outlines a part may have: plain shapes only.</summary>
     public static IReadOnlyList<PartShape> AllowedShapes { get; } = [PartShape.Ellipse, PartShape.Rectangle, PartShape.Rounded];
@@ -49,8 +65,10 @@ public static class RigStructure
     public static IReadOnlyList<PartRole> AllowedRoles { get; } = [PartRole.Body, PartRole.Hair, PartRole.Apron, PartRole.Coat, PartRole.Detail];
 
     /// <summary>
-    /// The parts a rig may have beside its hair, by id, each with its kind. The body is these seven blocks and
-    /// nothing else; the only detail is the eyes.
+    /// The parts a rig may have beside its hair, by id, each with its kind. The body is the seven blocks of trunk
+    /// and limbs, and with them (added on 2026-10-10 for the second art pass, each a plain shape in the colour of
+    /// the skin, none of them near a zone) the neck, the two feet and the two ears; the only details are the eyes
+    /// and the two halves of a small mouth.
     /// </summary>
     public static IReadOnlyDictionary<string, PartRole> AllowedParts { get; } = new Dictionary<string, PartRole>(StringComparer.Ordinal)
     {
@@ -61,8 +79,15 @@ public static class RigStructure
         ["armR"] = PartRole.Body,
         ["legL"] = PartRole.Body,
         ["legR"] = PartRole.Body,
+        ["neck"] = PartRole.Body,
+        ["footL"] = PartRole.Body,
+        ["footR"] = PartRole.Body,
+        ["earL"] = PartRole.Body,
+        ["earR"] = PartRole.Body,
         ["eyeL"] = PartRole.Detail,
         ["eyeR"] = PartRole.Detail,
+        ["mouthL"] = PartRole.Detail,
+        ["mouthR"] = PartRole.Detail,
         ["apron"] = PartRole.Apron,
         ["coat"] = PartRole.Coat,
     };
@@ -79,11 +104,25 @@ public static class RigStructure
     public static IReadOnlyList<int> AllowedColours(PartRole role) => role switch
     {
         PartRole.Body => [Skin, SkinInShade],
-        PartRole.Hair or PartRole.Detail => [Hair],
+        PartRole.Hair => [Hair, HairLock, HairSheen],
+        PartRole.Detail => [Hair, Mouth],
         PartRole.Apron => [ApronGreen],
         PartRole.Coat => [CoatBrown],
         _ => [],
     };
+
+    /// <summary>
+    /// Whether a bone of a rig is one that hair which moves hangs on: its name begins with <see cref="HairBone"/>
+    /// and it hangs on the head itself.
+    /// </summary>
+    /// <param name="rig">The rig.</param>
+    /// <param name="bone">The id of the bone.</param>
+    public static bool IsHairBone(Rig rig, string bone)
+    {
+        ArgumentNullException.ThrowIfNull(rig);
+        ArgumentNullException.ThrowIfNull(bone);
+        return bone.StartsWith(HairBone, StringComparison.Ordinal) && rig.Bones.Any(each => each.Id == bone && each.Parent == Head);
+    }
 
     /// <summary>What a rig holds that the amended rule does not allow; empty for a rig that may be drawn.</summary>
     /// <param name="rig">The rig.</param>
@@ -112,18 +151,20 @@ public static class RigStructure
                 found.Add($"The part \"{part.Id}\" of the rig {rig.Id} is not on the list of parts, or not of the kind the list gives it.");
             }
 
-            if (!AllowedColours(part.Role).Contains(part.Colour))
+            // Of the details, the eyes have the colour of the hair and the mouth has its own, and neither the other's.
+            var coloured = AllowedColours(part.Role).Contains(part.Colour)
+                && (part.Role != PartRole.Detail || (part.Colour == Mouth) == part.Id.StartsWith(MouthPrefix, StringComparison.Ordinal));
+            if (!coloured)
             {
                 found.Add($"The part \"{part.Id}\" of the rig {rig.Id} has a colour that is not a colour of its kind.");
             }
 
-            // Hair is bound to the head: to its bone, or to the bone of the head on which moving hair hangs. An eye
-            // is on the head itself.
-            var onTheHead = part.Bone == Head
-                || (part.Role == PartRole.Hair && part.Bone == HairBone && rig.Bones.Any(bone => bone.Id == HairBone && bone.Parent == Head));
-            if (part.Role is PartRole.Hair or PartRole.Detail && !onTheHead)
+            // Hair is bound to the head: to its bone, or to a bone of the head on which moving hair hangs. An eye,
+            // the mouth and an ear are on the head itself.
+            var onTheHead = part.Bone == Head || (part.Role == PartRole.Hair && IsHairBone(rig, part.Bone));
+            if ((part.Role is PartRole.Hair or PartRole.Detail || part.Id.StartsWith("ear", StringComparison.Ordinal)) && !onTheHead)
             {
-                found.Add($"The part \"{part.Id}\" of the rig {rig.Id} is hair or an eye and is not bound to the head.");
+                found.Add($"The part \"{part.Id}\" of the rig {rig.Id} is hair, an eye, the mouth or an ear and is not bound to the head.");
             }
 
             var rounded = part.Shape == PartShape.Rounded
