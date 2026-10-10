@@ -24,9 +24,10 @@
 // Rule M1. A character is never a body in space. Every part the game lists for it is a flat shape in ONE plane that
 // stands on the character's feet and faces the camera squarely: the plane is parallel to the picture, so the figure
 // on the screen is the figure the game judged, larger or smaller and nothing else, and it is never seen edge-on.
-// The parts are painted in the order of the list. Every pixel of every part of one character has one and the same
-// depth (written by its material, not left to the geometry), so scenery hides all of a figure's parts at a pixel
-// or none of them: it cannot remove a cover and leave what it covers. The figures take no light and no shadow.
+// The parts are painted in the order of the list: all the parts of one character are the triangles of one mesh, in
+// that order, each in the one flat colour of its part. Every pixel of every part of one character has one and the
+// same depth (written by its material, not left to the geometry), so scenery hides all of a figure's parts at a
+// pixel or none of them: it cannot remove a cover and leave what it covers. The figures take no light and no shadow.
 //
 // Three.js itself is asked for only here, when this renderer attaches and the browser has WebGL 2. Nothing here asks
 // any other origin.
@@ -87,15 +88,24 @@ const LIGHT = {
     bark: 0x7A5A3A, barkShade: 0x54402E, shaft: 0xFFE9B0, pollen: 0xFFF1C4, firefly: 0xE8FF9A, mist: 0xFFFFFF,
 };
 
-const FIGURE_VERTEX = "void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }";
-// One flat colour, and one depth for every pixel of every part of a character.
+// A character is one mesh: the corners of its parts in the order they are painted, each with the colour of its part.
+const FIGURE_PARTS = 72;
+const FIGURE_CORNERS = FIGURE_PARTS * ELLIPSE_SEGMENTS * 3;
+const FIGURE_VERTEX = `
+attribute vec3 aColour;
+varying vec3 vColour;
+void main() {
+    vColour = aColour;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`;
+// The flat colour of the part, and one depth for every pixel of every part of a character.
 const FIGURE_FRAGMENT = `
-uniform vec3 uColour;
 uniform vec3 uHazeColour;
 uniform float uHaze;
 uniform float uDepth;
+varying vec3 vColour;
 void main() {
-    gl_FragColor = vec4(mix(uColour, uHazeColour, uHaze), 1.0);
+    gl_FragColor = vec4(mix(vColour, uHazeColour, uHaze), 1.0);
     gl_FragDepth = uDepth;
     #include <colorspace_fragment>
 }`;
@@ -817,21 +827,21 @@ function buildAir(THREE, g) {
     }
 }
 
-// The flat shape of a part of a character, as the canvas paints it. An ellipse is a polygon drawn around the
-// ellipse, never inside it, and so is a rounded corner: a cover is never smaller here than the check takes it to be.
+// The flat shape of a part of a character, as the canvas paints it: the corners of its triangles (x, y, x, y, and so
+// on, about the place the part is put, y upward) and its colour. An ellipse is a polygon drawn around the ellipse,
+// never inside it, and so is a rounded corner: a cover is never smaller here than the check takes it to be.
 function flatOf(THREE, image) {
     if (image.flat) {
         return image.flat;
     }
     const shape = image.shapes[0];
-    let geometry;
+    const outline = [];
     if (shape.kind === 1) {
-        geometry = new THREE.PlaneGeometry(shape.width, shape.height);
+        outline.push(shape.width / 2, shape.height / 2, -shape.width / 2, shape.height / 2, -shape.width / 2, -shape.height / 2, shape.width / 2, -shape.height / 2);
     } else if (shape.kind === 2) {
-        // A rectangle with rounded corners: a fan about its middle. Each corner is a polygon drawn around its
-        // quarter circle, as an ellipse is.
+        // A rectangle with rounded corners. Each corner is a polygon drawn around its quarter circle, as an
+        // ellipse is.
         const beyond = shape.round / Math.cos(Math.PI / 4 / CORNER_SEGMENTS) - shape.round;
-        const outline = [];
         for (let corner = 0; corner < 4; corner++) {
             const centreX = (corner === 0 || corner === 3 ? 1 : -1) * (shape.width / 2 - shape.round);
             const centreY = (corner < 2 ? 1 : -1) * (shape.height / 2 - shape.round);
@@ -840,45 +850,47 @@ function flatOf(THREE, image) {
                 outline.push(centreX + Math.cos(angle) * (shape.round + beyond), centreY + Math.sin(angle) * (shape.round + beyond));
             }
         }
-        const corners = [];
-        for (let index = 0; index < outline.length; index += 2) {
-            const next = (index + 2) % outline.length;
-            corners.push(0, 0, 0, outline[index], outline[index + 1], 0, outline[next], outline[next + 1], 0);
-        }
-        geometry = new THREE.BufferGeometry();
-        geometry.setAttribute("position", new THREE.Float32BufferAttribute(corners, 3));
     } else {
         const around = 1 / Math.cos(Math.PI / ELLIPSE_SEGMENTS);
-        geometry = new THREE.CircleGeometry(1, ELLIPSE_SEGMENTS);
-        geometry.scale(shape.width / 2 * around, shape.height / 2 * around, 1);
+        for (let step = 0; step < ELLIPSE_SEGMENTS; step++) {
+            const angle = step / ELLIPSE_SEGMENTS * Math.PI * 2;
+            outline.push(Math.cos(angle) * shape.width / 2 * around, Math.sin(angle) * shape.height / 2 * around);
+        }
     }
-    geometry.translate(shape.x, -shape.y, 0);
-    image.flat = { geometry, colour: shape.colour };
+    // A fan about the middle of the shape.
+    const corners = [];
+    for (let index = 0; index < outline.length; index += 2) {
+        const next = (index + 2) % outline.length;
+        corners.push(shape.x, -shape.y, shape.x + outline[index], outline[index + 1] - shape.y, shape.x + outline[next], outline[next + 1] - shape.y);
+    }
+    const colour = new THREE.Color(shape.colour);
+    image.flat = { corners: new Float32Array(corners), red: colour.r, green: colour.g, blue: colour.b };
     return image.flat;
 }
 
-// The material of the parts of one character in one colour. It takes no light, no shadow and no texture: the colour
-// of a part is the colour the rig gives it (in the distance, with the haze of the place the figure stands on). It
-// writes the one depth of its character for every pixel, and paints over what was painted before it.
-function figureMaterial(THREE, g, character, colour) {
-    const key = character * 0x1000000 + colour;
-    let material = g.figureMaterials.get(key);
-    if (!material) {
-        const figure = g.figures[character - 1];
-        material = new THREE.ShaderMaterial({
-            uniforms: {
-                uColour: { value: new THREE.Color(colour) },
-                uHazeColour: { value: g.hazeColour },
-                uHaze: figure.haze,
-                uDepth: figure.depth,
-            },
+// The mesh of one character. Its material takes no light, no shadow and no texture: the colour of a part is the
+// colour the rig gives it (in the distance, with the haze of the place the figure stands on). It writes the one
+// depth of its character for every pixel, and paints over what was painted before it.
+function figureMesh(THREE, g, character) {
+    const figure = g.figures[character - 1];
+    if (!figure.mesh) {
+        figure.places = new Float32Array(FIGURE_CORNERS * 3);
+        figure.colours = new Float32Array(FIGURE_CORNERS * 3);
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute("position", new THREE.BufferAttribute(figure.places, 3).setUsage(THREE.DynamicDrawUsage));
+        geometry.setAttribute("aColour", new THREE.BufferAttribute(figure.colours, 3).setUsage(THREE.DynamicDrawUsage));
+        const material = new THREE.ShaderMaterial({
+            uniforms: { uHazeColour: { value: g.hazeColour }, uHaze: figure.haze, uDepth: figure.depth },
             vertexShader: FIGURE_VERTEX,
             fragmentShader: FIGURE_FRAGMENT,
             side: THREE.DoubleSide, transparent: true, depthTest: true, depthWrite: false, fog: false,
         });
-        g.figureMaterials.set(key, material);
+        figure.mesh = new THREE.Mesh(geometry, material);
+        figure.mesh.frustumCulled = false;
+        figure.mesh.visible = false;
+        g.scene.add(figure.mesh);
     }
-    return material;
+    return figure;
 }
 
 // The far layer: the sky with its slow clouds, birds crossing far off, and three ridges of hills whose colour
@@ -1026,20 +1038,6 @@ function resize() {
     game.renderer.setPixelRatio(game.shell.ratio);
     game.renderer.setSize(game.shell.viewWidth, game.shell.viewHeight, false);
     game.shadowKey = "";
-}
-
-function partMesh(index) {
-    const THREE = game.three;
-    let mesh = game.parts[index];
-    if (!mesh) {
-        mesh = new THREE.Mesh();
-        mesh.matrixAutoUpdate = false;
-        mesh.frustumCulled = false;
-        mesh.renderOrder = 10 + index;
-        game.scene.add(mesh);
-        game.parts[index] = mesh;
-    }
-    return mesh;
 }
 
 // The point of the ground the camera sees at a point of its picture (-1 to 1 across and up).
@@ -1251,6 +1249,9 @@ function draw(list, seconds) {
     }
     let parts = 0;
     let shafts = 0;
+    for (const figure of g.figures) {
+        figure.corners = 0;
+    }
     const count = list[0];
     const matrix = g.matrix;
     for (let entry = 0; entry < count; entry++) {
@@ -1285,20 +1286,40 @@ function draw(list, seconds) {
         // The transform is the one the canvas draws the part with; the list's order is the order of painting.
         const feet = list[ANCHORS + (character - 1) * 2 + 1];
         const flat = flatOf(THREE, image);
-        const mesh = partMesh(parts++);
-        mesh.geometry = flat.geometry;
-        mesh.material = figureMaterial(THREE, g, character, flat.colour);
-        mesh.visible = true;
-        mesh.matrix.set(
-            list[at + 1], -list[at + 3], 0, e,
-            -list[at + 2] * cos, list[at + 4] * cos, sin, (feet - f) * cos,
-            list[at + 2] * sin, -list[at + 4] * sin, cos, feet - (feet - f) * sin,
-            0, 0, 0, 1);
-        mesh.matrixWorldNeedsUpdate = true;
+        const figure = figureMesh(THREE, g, character);
+        if (figure.corners === 0) {
+            // The character the list names first is painted first: the one that stands farther north.
+            figure.mesh.renderOrder = 10 + parts;
+        }
+        if ((figure.corners + flat.corners.length / 2) > FIGURE_CORNERS) {
+            continue;
+        }
+        parts++;
+        const a = list[at + 1], b = list[at + 2], c = list[at + 3], d = list[at + 4];
+        const up = (feet - f) * cos, south = feet - (feet - f) * sin;
+        const places = figure.places, colours = figure.colours, corners = flat.corners;
+        let to = figure.corners * 3;
+        for (let from = 0; from < corners.length; from += 2) {
+            const x = corners[from], y = corners[from + 1];
+            places[to] = a * x - c * y + e;
+            places[to + 1] = (d * y - b * x) * cos + up;
+            places[to + 2] = (b * x - d * y) * sin + south;
+            colours[to] = flat.red;
+            colours[to + 1] = flat.green;
+            colours[to + 2] = flat.blue;
+            to += 3;
+        }
+        figure.corners = to / 3;
     }
-    for (let index = parts; index < g.parts.length; index++) {
-        g.parts[index].visible = false;
+    for (const figure of g.figures) {
+        if (figure.mesh) {
+            figure.mesh.visible = figure.corners > 0;
+            figure.mesh.geometry.setDrawRange(0, figure.corners);
+            figure.mesh.geometry.attributes.position.needsUpdate = true;
+            figure.mesh.geometry.attributes.aColour.needsUpdate = true;
+        }
     }
+    g.figureParts = parts;
     for (const scenery of g.scenery) {
         if (scenery) {
             scenery.mesh.count = scenery.count;
@@ -1384,12 +1405,12 @@ export async function attach(listView, inputView, tiles, ground, atlas, kinds, c
         // After the four numbers of each of the ten tile kinds, the ground lists the colours of the drifts of flowers.
         driftColours: 40,
         atlas: readAtlas(atlas),
-        scenery: [], parts: [], patches: [], coverMeshes: [], mist: [], fireflies: [], butterflies: [], blossoms: [],
+        scenery: [], patches: [], coverMeshes: [], mist: [], fireflies: [], butterflies: [], blossoms: [],
         time: { value: 0 },
         rings: { value: Array.from({ length: ANCHOR_COUNT }, () => new THREE.Vector3()) },
         scale: new THREE.Vector3(), turn: new THREE.Quaternion(), colour: new THREE.Color(), tint: new THREE.Color(),
-        figures: Array.from({ length: ANCHOR_COUNT }, () => ({ depth: { value: 0 }, haze: { value: 0 } })),
-        figureMaterials: new Map(),
+        figures: Array.from({ length: ANCHOR_COUNT }, () => ({ depth: { value: 0 }, haze: { value: 0 }, mesh: null, corners: 0 })),
+        figureParts: 0,
         matrix: new THREE.Matrix4(), vector: new THREE.Vector3(), corner: new THREE.Vector3(), euler: new THREE.Euler(),
         motion: !reduced.matches, motionSeconds: 0, lastNow: undefined,
         frameRequest: 0, shadowTexel: 1, shadowKey: "", drawCalls: 0, triangles: 0, lastAnchors: new Float64Array(ANCHOR_COUNT * 2),
@@ -1442,14 +1463,6 @@ export function detach() {
             material.dispose();
         }
     });
-    for (const image of g.atlas) {
-        if (image.flat) {
-            image.flat.geometry.dispose();
-        }
-    }
-    for (const material of g.figureMaterials.values()) {
-        material.dispose();
-    }
     g.renderer.dispose();
     if (!g.lost) {
         g.renderer.forceContextLoss();
@@ -1479,7 +1492,7 @@ export function probe(points) {
         wings: g.wings.count,
         seconds: g.motionSeconds,
         anchors: Array.from({ length: ANCHOR_COUNT }, (_, index) => [g.lastAnchors[index * 2], g.lastAnchors[index * 2 + 1]]),
-        parts: g.parts.filter(mesh => mesh.visible).length,
+        parts: g.figureParts,
         parallax: [g.farRidge.position.x * g.shell.viewWidth / 2, g.nearRidge.position.x * g.shell.viewWidth / 2],
         screen: (points ?? []).map(([x, height, y]) => {
             g.vector.set(x, height, y).project(g.camera);
