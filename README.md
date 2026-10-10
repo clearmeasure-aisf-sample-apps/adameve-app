@@ -37,7 +37,7 @@ the same check (`StillFigure`), with the verdict on the root of their page.
 |---|---|
 | `src/AdamEve.Core` | The story machine (the title and the days of creation) and the world rules: the map, walking, pathfinding, the camera, the rigs and the M1 check, the render list, the save model. No package reference, no I/O |
 | `src/AdamEve.Content` | The canonical text, the game-written labels and the loaders of the content (glossary, map, rigs). References Core only |
-| `src/AdamEve.Client` | Blazor WebAssembly, standalone: the game, which runs in the browser. `wwwroot/js/render.js` is the one thin canvas module |
+| `src/AdamEve.Client` | Blazor WebAssembly, standalone: the game, which runs in the browser. `wwwroot/js/render.js` is the one thin canvas module. A trial of a second renderer (Three.js, `wwwroot/js/render-three.js`, chosen with `?renderer=three`) is described in `docs/spike-threejs.md` |
 | `src/AdamEve.Host` | ASP.NET Core, the outermost project: serves the published client and answers the health paths. No game code. Published, it is the content of the container image |
 | `tests/AdamEve.UnitTests` | NUnit and Shouldly |
 | `tests/AdamEve.IntegrationTests` | The published site, served by the published host as a process (`ADAMEVE_BASE_URL`) |

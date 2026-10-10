@@ -57,6 +57,9 @@ Not in the glossary yet, because the design's list gives them no definition: *on
 | | L |
 | | XL |
 | Title and garden, the setting that turns sound on and off | Sound |
+| Garden, temporary: the setting of the trial of the Three.js renderer (`docs/spike-threejs.md`); it goes when the trial ends | Renderer (trial) |
+| | Canvas |
+| | Three.js |
 | Garden, the D-pad buttons, read by a screen reader | Up |
 | | Down |
 | | Left |

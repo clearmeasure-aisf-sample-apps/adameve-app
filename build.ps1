@@ -47,6 +47,10 @@ $script:site = $null
 
 # The first load of the game on a phone: 3.0 MB, measured over the brotli files the publish step writes.
 $script:payloadBudgetBytes = 3.0 * 1024 * 1024
+# The files only the Three.js renderer of the trial asks for (docs/spike-threejs.md), and only when it is chosen: they
+# are not part of the first load. deploy/verify.ps1 has the same pattern, and a full-system test proves that a visit
+# that does not choose that renderer asks for none of them.
+$script:onDemand = '^(js/render-three\.js|lib/three/.+)$'
 $script:title = 'Adam and woman in the garden of Eden'
 
 function Init {
@@ -146,6 +150,8 @@ function PayloadBudget {
     $total = 0L
     $largestIcu = 0L
     $count = 0
+    $later = 0L
+    $laterCount = 0
     foreach ($file in Get-ChildItem -LiteralPath $siteDir -Recurse -File | Where-Object { $_.Extension -notin '.br', '.gz' }) {
         $path = [System.IO.Path]::GetRelativePath($siteDir, $file.FullName).Replace('\', '/')
         if ($path -match $neverAsked) { continue }
@@ -155,16 +161,22 @@ function PayloadBudget {
             if ($size -gt $largestIcu) { $largestIcu = $size }
             continue
         }
+        if ($path -match $onDemand) {
+            $later += $size
+            $laterCount++
+            continue
+        }
         $total += $size
         $count++
     }
     $total += $largestIcu
     $megabytes = [Math]::Round($total / 1MB, 2)
+    $laterMegabytes = [Math]::Round($later / 1MB, 2)
     $budget = [Math]::Round($payloadBudgetBytes / 1MB, 1)
     if ($total -gt $payloadBudgetBytes) {
         Stop-Build "The first load is $megabytes MB ($count files and one ICU data file, brotli): over the budget of $budget MB"
     }
-    Write-Pass "the first load is $megabytes MB ($count files and one ICU data file, brotli), within the budget of $budget MB"
+    Write-Pass "the first load is $megabytes MB ($count files and one ICU data file, brotli), within the budget of $budget MB; loaded on demand: $laterMegabytes MB ($laterCount files)"
 }
 
 function StaticFiles {
@@ -213,8 +225,9 @@ function StaticFiles {
                     sha256 = Get-FileSha256 -Path $_.FullName
                 }
             })
-    Write-TextFile -Path (Join-Path $publishDir 'files.json') -Text ((@{ version = $version; files = $files } | ConvertTo-Json -Depth 4) + "`n")
-    Write-Pass "files.json lists $($files.Count) files"
+    $later = @($files | ForEach-Object { $_.path } | Where-Object { $_ -match $onDemand })
+    Write-TextFile -Path (Join-Path $publishDir 'files.json') -Text ((@{ version = $version; files = $files; onDemand = $later } | ConvertTo-Json -Depth 4) + "`n")
+    Write-Pass "files.json lists $($files.Count) files, $($later.Count) of them loaded on demand"
 }
 
 function Start-Site {

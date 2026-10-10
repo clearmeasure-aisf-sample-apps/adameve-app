@@ -77,6 +77,18 @@ public static class GameText
     /// <summary>The setting that turns sound on and off.</summary>
     public const string Sound = "Sound";
 
+    /// <summary>
+    /// The setting that chooses what draws the garden. Temporary: it is there for the trial of the Three.js
+    /// renderer (docs/spike-threejs.md) and goes when the trial ends.
+    /// </summary>
+    public const string RendererTrial = "Renderer (trial)";
+
+    /// <summary>The trial setting: the canvas 2D renderer, the default.</summary>
+    public const string RendererCanvas = "Canvas";
+
+    /// <summary>The trial setting: the Three.js renderer.</summary>
+    public const string RendererThree = "Three.js";
+
     /// <summary>The D-pad button that walks north.</summary>
     public const string Up = "Up";
 

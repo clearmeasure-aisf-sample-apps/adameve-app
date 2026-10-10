@@ -11,8 +11,10 @@ public static partial class GameInterop
 {
     private const string RenderModule = "render";
     private const string AudioModule = "audio";
+    private const string ThreeModule = "render-three";
 
     private static bool imported;
+    private static bool threeImported;
 
     /// <summary>Whether the modules of the game are loaded: before that, nothing of them can be called.</summary>
     internal static bool Imported => imported;
@@ -54,6 +56,46 @@ public static partial class GameInterop
     [JSImport("detach", RenderModule)]
     internal static partial void Detach();
 
+    /// <summary>Whether the module of the Three.js renderer is loaded: before that, nothing of it can be called.</summary>
+    internal static bool ThreeImported => threeImported;
+
+    /// <summary>
+    /// Loads the module of the Three.js renderer from the site itself, once, and only when that renderer is chosen
+    /// (docs/spike-threejs.md): a visit that plays on the canvas never asks for it. The module asks for Three.js
+    /// itself when it attaches, and only where the browser has WebGL.
+    /// </summary>
+    internal static async Task ImportThreeAsync()
+    {
+        if (threeImported)
+        {
+            return;
+        }
+
+        await JSHost.ImportAsync(ThreeModule, "../js/render-three.js");
+        threeImported = true;
+    }
+
+    /// <summary>
+    /// Starts the Three.js renderer on the canvas of the page: the same arguments as <see cref="Attach"/>.
+    /// </summary>
+    /// <returns>False when the browser has no WebGL: nothing was started, and the canvas is still free.</returns>
+    [JSImport("attach", ThreeModule)]
+    [return: JSMarshalAs<JSType.Promise<JSType.Boolean>>]
+    internal static partial Task<bool> AttachThree(
+        [JSMarshalAs<JSType.MemoryView>] ArraySegment<double> list,
+        [JSMarshalAs<JSType.MemoryView>] ArraySegment<double> input,
+        [JSMarshalAs<JSType.Array<JSType.Number>>] int[] tiles,
+        [JSMarshalAs<JSType.Array<JSType.Number>>] double[] ground,
+        [JSMarshalAs<JSType.Array<JSType.Number>>] double[] atlas,
+        [JSMarshalAs<JSType.Array<JSType.String>>] string[] verdicts,
+        int mapWidth,
+        int mapHeight,
+        int tileSize,
+        int backdrop);
+
+    [JSImport("detach", ThreeModule)]
+    internal static partial void DetachThree();
+
     [JSImport("setEnabled", AudioModule)]
     internal static partial void SetSoundEnabled(bool enabled);
 
@@ -68,4 +110,10 @@ public static partial class GameInterop
 
     [JSImport("globalThis.localStorage.removeItem")]
     internal static partial void RemoveItem(string key);
+
+    [JSImport("globalThis.sessionStorage.getItem")]
+    internal static partial string? GetSessionItem(string key);
+
+    [JSImport("globalThis.sessionStorage.setItem")]
+    internal static partial void SetSessionItem(string key, string value);
 }

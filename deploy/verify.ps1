@@ -19,7 +19,8 @@
        fetched and compared.
     5. The first load as the app sends it: the files a first visit asks for, fetched again with Accept-Encoding: br,
        the bytes of the answers added up. Above 3.0 MB the step fails, and so it does when no answer came as
-       brotli. Of the three ICU data files the largest counts.
+       brotli. Of the three ICU data files the largest counts. The files only the Three.js renderer of the trial asks
+       for are fetched and checked like the others and added up apart: a first visit does not ask for them.
     6. The nodes file, when the context names one: the app as the one node of the environment, with its paths.
 
     Nothing is written to standard error: a deployment takes an error line for a failure.
@@ -190,6 +191,9 @@ Test-That "$($files.Count) files are served as the build made them (size and SHA
 
 Write-Host '==> The first load, as the app sends it'
 $neverAsked = '^404\.html$'
+$onDemand = '^(js/render-three\.js|lib/three/.+)$'
+$later = 0L
+$laterCount = 0
 $total = 0L
 $largestIcu = 0L
 $compressed = 0
@@ -204,13 +208,18 @@ foreach ($file in $files | Where-Object { $_.path -notmatch $neverAsked }) {
         if ($got.Bytes.Length -gt $largestIcu) { $largestIcu = $got.Bytes.Length }
         continue
     }
+    if ($file.path -match $onDemand) {
+        $later += $got.Bytes.Length
+        $laterCount++
+        continue
+    }
     $total += $got.Bytes.Length
     $count++
 }
 $total += $largestIcu
 $megabytes = [Math]::Round($total / 1MB, 2)
 Test-That "$compressed of $asked answers came as brotli (the rest are files that do not compress)" ($compressed -gt 0) 'the app sent no answer with Content-Encoding: br'
-Test-That "the first load is $megabytes MB ($count files and one ICU data file), within 3.0 MB" ($total -le $payloadBudgetBytes)
+Test-That "the first load is $megabytes MB ($count files and one ICU data file), within 3.0 MB; loaded on demand: $([Math]::Round($later / 1MB, 2)) MB ($laterCount files)" ($total -le $payloadBudgetBytes)
 
 if ($failures -gt 0) { Stop-Step "$failures check(s) failed: $Environment does not run version $Version as built." }
 

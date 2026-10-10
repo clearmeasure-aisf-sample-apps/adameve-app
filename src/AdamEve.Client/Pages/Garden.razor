@@ -1,5 +1,6 @@
 @page "/garden"
 @using AdamEve.Client.Game
+@using AdamEve.Core.Game
 @using AdamEve.Core.Saves
 @using AdamEve.Core.Story
 @implements IDisposable
@@ -11,11 +12,12 @@
 
 @* The game root. The canvas module writes the data- attributes the tests read (player tile, facing, the M1
    verdict). All text is here, in the page, over the canvas: the canvas holds no words. *@
-<div id="game" class="game @Session.TextClass" data-testid="game">
+<div id="game" class="game @Session.TextClass" data-testid="game" data-renderer="@RendererTrial.NameOf(Session.ActiveRenderer)" data-renderer-fallback="@Session.RendererFallback">
     <h1 class="visually-hidden">@GameInfo.Title</h1>
 
     <div class="game-play">
-        <canvas id="game-canvas" class="game-canvas" data-testid="game-canvas" aria-hidden="true"></canvas>
+        @* A canvas draws with one renderer for as long as it lives: another renderer gets a new canvas. *@
+        <canvas @key="Session.CanvasGeneration" id="game-canvas" class="game-canvas" data-testid="game-canvas" aria-hidden="true"></canvas>
     </div>
 
     <div class="game-controls" data-testid="controls">
@@ -32,7 +34,7 @@
     <section class="game-panel @(Session.MenuOpen ? null : "game-panel-empty")" data-game-panel data-testid="settings" aria-live="polite">
         @if (Session.MenuOpen)
         {
-            <SettingsControls />
+            <SettingsControls RendererTrialShown="true" />
             <p class="game-panel-links">
                 <a href="" data-testid="title-link">@GameText.BackToTitle</a>
                 <button type="button" class="game-button" data-testid="settings-close" @onclick="Session.ToggleMenu">@GameText.CloseDefinition</button>
@@ -58,6 +60,7 @@
     protected override void OnInitialized()
     {
         Session.LoadSettings();
+        Session.LoadRenderer(Navigation.Uri);
         Session.Changed += Render;
 
         // A saved game that stands in the days of creation goes on there, not in the garden.
@@ -70,7 +73,7 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && !inCreation)
+        if ((firstRender || Session.StartPending) && !inCreation)
         {
             await Session.StartAsync();
         }
