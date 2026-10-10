@@ -40,7 +40,8 @@ and takes its `wwwroot` (a standalone client gets its import map only from its o
 
 - Unit, integration and full-system tests at each level the change touches; the private build is green at the desk.
 - The integration build is green, checked through the API (the conclusion of job `Build result`), not by an exit code.
-- The first load stays within 3.0 MB (the build fails otherwise).
+- The first load (what the title needs) stays within 3.0 MB (the build fails otherwise). The modules of the garden
+  and Three.js are loaded on demand; the title and the reader must not ask for them.
 - Deployed to tdd and verified.
 - `master` merged into the branch before a pull request.
 
@@ -54,15 +55,37 @@ and takes its `wwwroot` (a standalone client gets its import map only from its o
 
 ## Modesty, hard rule M1 (design, sections 1, 5.3, 5.6)
 
-Before Genesis 3:7 the private parts of Adam and the woman are always turned away from the viewer or covered, in
-every sprite frame, pose, animation frame, portrait, cutscene shot and camera angle. Fig-leaf aprons from 3:7,
-coats of skins from 3:21. No asset is committed without the checks of the design and a human review.
+Decision D4, amended by D18 on 2026-10-10 (the amendment is the session's reading of D18, to be confirmed by
+Jeffrey before final art is made). The rule, in every sprite frame, pose, animation frame, portrait, cutscene shot
+and camera angle:
 
-The check is one class, `AdamEve.Core.Rigs.ConcealmentChecker`: the unit tests run it over every frame of every rig
-(`ConcealmentTests`), and the running game runs it for every character in every frame and writes the verdict on the
-game root (`data-concealment`). A rig part is bound to a bone; a concealment zone needs a concealment record for
-every view and covering variant, or the frame fails closed. Never weaken the check to make a frame pass: change the
-rig.
+- **The figures are never anatomical.** They are for young readers. No rig part, in any frame, facing or variant,
+  draws or suggests genitals, buttocks detail, nipples or breasts. The pelvic region of both figures is a smooth,
+  featureless continuation of the body shape, as on a simple doll or a wooden figure. The woman's chest is a plain
+  torso shape with no modelling. Never add anatomical detail to make a figure "more realistic": if a task seems to
+  require it, stop and ask Jeffrey.
+- **The woman's long hair covers her chest** whenever it faces the viewer. There is no companion foliage: D18
+  removed it.
+- Fig-leaf aprons from 3:7, coats of skins from 3:21: they are Scripture and stay in the rigs.
+- No asset is committed without the checks of the design and a human review.
+
+The checks are in `AdamEve.Core.Rigs`. `RigStructure` lists what a rig may hold (shapes, kinds, names, colours):
+a rig with anything else does not load, and a new kind or shape fails a test until a person adds it to the lists.
+`ConcealmentChecker` judges a frame: the pelvic zone is plain (the hips cover it and nothing else reaches into it),
+and hair covers every pixel of the woman's chest zone that is not turned away, with alpha 0.95 or more. The unit
+tests run them over every frame of every rig (`ConcealmentTests`, `RigStructureTests`); the running game runs them
+for every character in every frame and writes the verdict on the game root (`data-concealment`); a figure that
+fails is not drawn. A full-system test reads the pixels the renderer drew (`GardenRendererTests`). A concealment
+zone needs a concealment record for every view and covering variant, or the frame fails closed. Never weaken a
+check to make a frame pass: change the rig.
+
+## The garden's camera and renderer (design, sections 6 and 7.1, decision D18)
+
+Three.js draws the garden (`wwwroot/js/render-three.js`), the canvas is the fallback (`render.js`), and what they
+share is `shell.js`. The camera is a rule of the game: `AdamEve.Core.World.PerspectiveCamera`. Culling, the tile
+under a tap and the scale a figure is judged at come from it, and the renderer sets its camera from the numbers the
+render list carries. Do not put a projection constant into JavaScript, and do not let anything turn or zoom the
+camera. A character is flat shapes in one plane that faces the camera, at one depth: never a 3D body.
 
 ## Assets (design, section 5.5)
 

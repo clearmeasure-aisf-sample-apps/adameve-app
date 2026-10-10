@@ -3,31 +3,49 @@ using System.Runtime.InteropServices.JavaScript;
 namespace AdamEve.Client.Game;
 
 /// <summary>
-/// The whole border between the game and the browser (design, section 7.1): the canvas module calls
+/// The whole border between the game and the browser (design, section 7.1): the renderer module calls
 /// <see cref="Frame"/> once for each frame and reads the render list from the game's memory; the game calls the
-/// browser only to start and stop the canvas, to set the sound, and to read and write <c>localStorage</c>.
+/// browser only to start and stop the renderer, to set the sound, and to read and write <c>localStorage</c>. No
+/// module of the game is loaded before the garden: the title and the reader ask for none of them.
 /// </summary>
 public static partial class GameInterop
 {
-    private const string RenderModule = "render";
+    private const string CanvasModule = "render";
     private const string AudioModule = "audio";
     private const string ThreeModule = "render-three";
 
     private static bool imported;
+    private static bool canvasImported;
     private static bool threeImported;
 
-    /// <summary>Whether the modules of the game are loaded: before that, nothing of them can be called.</summary>
+    /// <summary>Whether the sound module is loaded: before that, nothing of it can be called.</summary>
     internal static bool Imported => imported;
+
+    /// <summary>Whether the module of the canvas renderer is loaded: before that, nothing of it can be called.</summary>
+    internal static bool CanvasImported => canvasImported;
+
+    /// <summary>Whether the module of the Three.js renderer is loaded: before that, nothing of it can be called.</summary>
+    internal static bool ThreeImported => threeImported;
 
     /// <summary>What a frame runs: the session that is playing, or nothing.</summary>
     internal static Action<double>? OnFrame { get; set; }
 
-    /// <summary>One frame of the game. The canvas module calls it from <c>requestAnimationFrame</c>.</summary>
+    /// <summary>What runs when the Three.js renderer lost its WebGL context for good: the session that is playing, or nothing.</summary>
+    internal static Action? OnRendererLost { get; set; }
+
+    /// <summary>One frame of the game. The renderer module calls it from <c>requestAnimationFrame</c>.</summary>
     /// <param name="nowMs">The time of the frame, as the browser gives it.</param>
     [JSExport]
     public static void Frame(double nowMs) => OnFrame?.Invoke(nowMs);
 
-    /// <summary>Loads the two modules of the game from the site itself, once.</summary>
+    /// <summary>
+    /// The Three.js renderer lost its WebGL context and the browser did not give it back: the game goes on with
+    /// the canvas renderer. The renderer module calls it.
+    /// </summary>
+    [JSExport]
+    public static void RendererLost() => OnRendererLost?.Invoke();
+
+    /// <summary>Loads the sound module from the site itself, once.</summary>
     internal static async Task ImportAsync()
     {
         if (imported)
@@ -35,12 +53,27 @@ public static partial class GameInterop
             return;
         }
 
-        await JSHost.ImportAsync(RenderModule, "../js/render.js");
         await JSHost.ImportAsync(AudioModule, "../js/audio.js");
         imported = true;
     }
 
-    [JSImport("attach", RenderModule)]
+    /// <summary>
+    /// Loads the module of the canvas renderer from the site itself, once, and only when it has to draw: where
+    /// WebGL is not to be had, or the address of the garden asks for it.
+    /// </summary>
+    internal static async Task ImportCanvasAsync()
+    {
+        if (canvasImported)
+        {
+            return;
+        }
+
+        await JSHost.ImportAsync(CanvasModule, "../js/render.js");
+        canvasImported = true;
+    }
+
+    /// <summary>Starts the canvas renderer on the canvas of the page.</summary>
+    [JSImport("attach", CanvasModule)]
     internal static partial Task Attach(
         [JSMarshalAs<JSType.MemoryView>] ArraySegment<double> list,
         [JSMarshalAs<JSType.MemoryView>] ArraySegment<double> input,
@@ -53,16 +86,12 @@ public static partial class GameInterop
         int tileSize,
         int backdrop);
 
-    [JSImport("detach", RenderModule)]
+    [JSImport("detach", CanvasModule)]
     internal static partial void Detach();
 
-    /// <summary>Whether the module of the Three.js renderer is loaded: before that, nothing of it can be called.</summary>
-    internal static bool ThreeImported => threeImported;
-
     /// <summary>
-    /// Loads the module of the Three.js renderer from the site itself, once, and only when that renderer is chosen
-    /// (docs/spike-threejs.md): a visit that plays on the canvas never asks for it. The module asks for Three.js
-    /// itself when it attaches, and only where the browser has WebGL.
+    /// Loads the module of the Three.js renderer from the site itself, once, when the garden starts. The module
+    /// asks for Three.js itself when it attaches, and only where the browser has WebGL 2.
     /// </summary>
     internal static async Task ImportThreeAsync()
     {
@@ -78,7 +107,7 @@ public static partial class GameInterop
     /// <summary>
     /// Starts the Three.js renderer on the canvas of the page: the same arguments as <see cref="Attach"/>.
     /// </summary>
-    /// <returns>False when the browser has no WebGL: nothing was started, and the canvas is still free.</returns>
+    /// <returns>False when the browser has no WebGL 2: nothing was started, and the canvas is still free.</returns>
     [JSImport("attach", ThreeModule)]
     [return: JSMarshalAs<JSType.Promise<JSType.Boolean>>]
     internal static partial Task<bool> AttachThree(
@@ -110,10 +139,4 @@ public static partial class GameInterop
 
     [JSImport("globalThis.localStorage.removeItem")]
     internal static partial void RemoveItem(string key);
-
-    [JSImport("globalThis.sessionStorage.getItem")]
-    internal static partial string? GetSessionItem(string key);
-
-    [JSImport("globalThis.sessionStorage.setItem")]
-    internal static partial void SetSessionItem(string key, string value);
 }

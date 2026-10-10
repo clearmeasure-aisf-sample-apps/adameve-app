@@ -109,6 +109,23 @@ How M1 is met by construction:
   the full default foliage cluster in front of the character and reports an error. Tests treat that error as a
   failure.
 
+**Amended 2026-10-10 (D18; the session's reading of D18, to be confirmed by Jeffrey before final art is made).** Jeffrey decided: "Make
+characters not have leaves covering. Woman has long hair covering breasts" (section 12, D18). The companion foliage
+and the default foliage cluster are removed. Modesty now holds like this:
+
+- **The figures are never anatomical.** No rig part, in any frame, facing or variant, draws or suggests genitals,
+  buttocks detail, nipples or breasts. The pelvic region of both figures is a smooth, featureless continuation of
+  the body shape, as on a simple doll or a wooden figure. The woman's chest is a plain torso shape with no
+  modelling: her body is the same seven blocks as Adam's. Nothing is added to make a figure "more realistic".
+- **The woman's long hair** covers her chest in every facing, pose and animation frame in which the chest would face
+  the viewer. It is bound to the head, in the hair colour of D7, and ends at the waist, above the pelvic zone.
+- **Fail closed** now means: a figure whose frame does not pass the checks of section 5.6 is not drawn at all, and
+  the frame is counted and reported.
+- The fig-leaf aprons (3:7) and the coats of skins (3:21) stay in the rigs as they were: they are Scripture, not
+  the companion foliage. They are not shown yet.
+- In the table above, read the first row as: the pelvic area of both is the body's own smooth shape with nothing
+  drawn in it; the chest of the woman is turned away from the viewer or covered by her hair.
+
 **No gore, no fear for its own sake.** 2:21 (the rib) is light at the sleeping man's side; nothing anatomical is
 shown. In 3:21 (the coats of skins) the coats appear in the light; no animal is killed on screen. 3:24 is majestic,
 not frightening.
@@ -527,6 +544,16 @@ Adam, the woman, the serpent and the larger animals are **cut-out rigs**, not fr
 - Covering variants: `none` (before 3:7: companion foliage and hair), `aprons` (3:7-3:21: the fig-leaf apron
   replaces the foliage; hair still covers the woman's chest), `coats` (from 3:21).
 
+**Amended 2026-10-10 (D18; the session's reading of D18, to be confirmed by Jeffrey before final art is made).** The rigs have no
+occluder parts and no companion foliage. A rig holds only what `AdamEve.Core.Rigs.RigStructure` lists: plain shapes
+(ellipse, rectangle); the body as seven blocks (head, torso, hips, two arms, two legs) in the skin colour or its
+shade; hair parts bound to the head in the hair colour; the two eyes; the apron and the coat for their variants.
+The pelvic zone lies on the hips and is declared *plain* for the variant `none` in every view: the body's own
+shape, with nothing drawn in it. The chest zone of the woman lies on the torso and is covered by hair in the front
+and side views. The woman's long hair is a fall behind the body (in front of it, seen from behind), two curtains
+beside the face, and two locks over the chest with rounded tips at the waist. Under the perspective camera
+(section 6) a rig is drawn as a flat cut-out that faces the camera: never a body in space.
+
 ### 5.4 Audio
 
 All audio is generated (D13) and instrumental: no vocals, so no generated lyrics can stray from the text.
@@ -647,6 +674,22 @@ encoded as WebP at about quality 85.
 | Game (full-system) | The renderer computes the same verdict for each visible character every frame and exposes it on the game root (`data-concealment="ok"` or `"fail:<rig>:<zone>"`). Playwright walks all 8 facings, wades a river, sleeps (2:21) and plays every cutscene before 3:21 on each device profile, and fails on any frame that is not `ok`. It also saves screenshots of key frames as review artifacts; they are not compared pixel by pixel |
 | Human | The M1 item of the review checklist (section 5.5), for each asset, before commit |
 
+**Amended 2026-10-10 (D18; the session's reading of D18, to be confirmed by Jeffrey before final art is made).** With the foliage gone
+the coverage check of the pelvic zone fails by design, so the checks are these, at least as strict, in
+`AdamEve.Core` with unit tests, and in the running game for every frame (`data-concealment` with its count of
+frames that are not `ok` stays):
+
+| Check | What it requires |
+|---|---|
+| 1. Structure (`RigStructure`; unit tests; at load; in the running game) | Every part is one of the listed plain shapes, of a listed kind, with a listed name, in a colour of its kind. A rig with anything else does not load, and its verdict is `fail:<rig>:structure`. A test fails when a new shape or kind is added to the code before a person adds it to the lists |
+| 1b. The pelvic zone is plain (`ConcealmentChecker`; every frame at 60 Hz, eight facings, 1x, 2x and the scales the camera draws at) | The hips cover every pixel of the zone, and no other part reaches into the zone, except a body part beneath the hips (the tops of the legs) or of the hips' very colour. Hair, a detail, an apron or a coat before its verse, or a body part of another colour in the zone fails the frame, even hidden behind the body |
+| 2. The woman's chest (`ConcealmentChecker`; same frames) | Every pixel of the chest zone that is not turned away is covered by hair with alpha 0.95 or more: the rasterizing check the foliage had. Unit tests prove it fails for a gap of one pixel, for hair behind the body, for hair too short and for a missing record |
+| 3. The rendered image (full-system, the real renderer with the perspective camera, eight facings, both characters, three device profiles) | Pixels read from the WebGL canvas: the woman's chest zone, not turned away, holds only the hair colour and no skin-coloured pixel; the pelvic zone of both holds only the body's flat skin colour (no second colour, no edge, no shape); the outline of the figure lies where the camera of the game puts it. A sheet of the eight facings of each character is kept with the test results for review |
+| 4. Aprons and coats | Unchanged: the apron covers the pelvic zone from 3:7, the coat both zones from 3:21, by the coverage check |
+
+The verdict is `ok`, `fail:<rig>:<zone>` or `fail:<rig>:structure`. A figure that fails is not drawn. The human
+review of every asset stays.
+
 ### 5.7 User interface
 
 - **Scripture card:** parchment background, a serif face (Source Serif 4, OFL), the reference ("Genesis 3:9") in the
@@ -675,6 +718,15 @@ encoded as WebP at about quality 85.
 - **Layout.** The canvas fills the viewport. Landscape shows about 15 × 9 tiles; portrait about 9 × 15, with the
   dialogue panel docked at the bottom and the D-pad and A button below the play area. Rotation keeps the player's
   position and any open dialogue. The layout respects safe-area insets (notches). Minimum supported size: 360 × 640.
+  *Changed 2026-10-10 (D18: "Use perspective or parallax when possible"):* the garden is seen through a
+  perspective camera that follows the player (`AdamEve.Core.World.PerspectiveCamera`). Its direction and tilt are
+  fixed (it looks north and 42 degrees down, with a field of view of 40 degrees from top to bottom); the player
+  cannot turn or zoom it. The counts of tiles above hold along the player's row: nearer rows are larger, farther
+  rows smaller, and the far end of the picture is lost in haze, behind which a far layer (hills and sky) slides
+  less than the ground (layered parallax; it stands still under reduced motion). The camera is one projection model
+  in Core: culling, the tile under a tap (a ray from the eye to the ground), the stops at the map's edges, the scale
+  a figure is judged at and the camera of the renderer all come from it. The canvas fallback (section 7.1) and all
+  text and menus stay flat.
 - **Performance targets.** 60 frames a second on a mid-range phone (Pixel 6a, iPhone 11 or Galaxy A54 class), and
   never below 30. No garbage-collection pause longer than 16 ms during play. Memory under 200 MB. First interaction
   within 5 seconds on a 4G connection.
@@ -742,6 +794,19 @@ How it works:
 - Images are decoded once with `createImageBitmap`. Sizes follow `devicePixelRatio`, capped at 2.
 - JavaScript collects input events (keyboard, pointer, touch) into one small state block that `Frame` reads. They
   are never sent as one interop call per event.
+
+**Changed 2026-10-10 (D18: "Three.js is better").** Jeffrey compared the two renderers of the spike
+(`docs/spike-threejs.md`) on the test site and chose Three.js. The garden is drawn by `js/render-three.js` with
+Three.js 0.185.1 (WebGL 2, vendored under `wwwroot/lib/three/`, about 0.16 MB as brotli, no addon), through the
+perspective camera of section 6. The table above stands as the record of the first choice; its last row is now the
+fallback: `js/render.js`, canvas 2D and flat, draws where the browser has no WebGL 2, where Three.js cannot be
+loaded, where the WebGL context is lost and does not come back within two seconds, and where the address asks for
+it (`?renderer=canvas`). The game root says which draws (`data-renderer`) and why (`data-renderer-fallback`).
+What the two share (input, the frame, the game root) is one module, `js/shell.js`. Everything else above holds
+for both: C# owns the state, one call a frame, the render list in the game's memory. The list now also carries the
+camera, and for each entry the character it belongs to: a character is drawn as flat shapes in one plane that
+faces the camera, at one depth, in the order of the list. None of these modules is part of the first load: the
+title and the reader ask for none of them, the garden asks for them when a player enters it.
 
 ### 7.2 Game loop and input
 
@@ -1037,6 +1102,13 @@ Tests reach a chapter quickly by writing a save into `localStorage` before the p
 scenario format, so the game has no test-only code path. Assertions use the DOM (cards, choices, the status line,
 and the `data-` attributes on the game root: chapter, beat, player tile, concealment verdict), never pixel
 comparison.
+
+**Changed 2026-10-10 (D18).** The tests of the renderer (`GardenRendererTests`) also read what the WebGL canvas
+drew, where no attribute can say it: the colours inside the concealment zones of both figures (section 5.6, check
+3), the outline of a figure against the camera of the game, the haze and the far layer. They read colours at
+places the projection model of Core names; they still compare no picture with a stored picture. A headless browser
+draws WebGL in software, so no frame time of the Three.js renderer is asserted there: the guard is a bound on the
+draw calls, the triangles and the shadow map of a frame, and the canvas fallback keeps its frame budget.
 
 ### 8.1 Unit test examples
 
@@ -1413,14 +1485,14 @@ final character art. Independent slices (S2b beside S4, for example) may run in 
 
 ---
 
-## 12. Decided by Jeffrey, 2026-10-08 (D17: 2026-10-09)
+## 12. Decided by Jeffrey, 2026-10-08 (D17: 2026-10-09; D18: 2026-10-10)
 
 | # | Decision | Where it is applied |
 |---|---|---|
 | D1 | **Adam refuses after the woman has eaten:** the garden pauses. After three refusals the game shows the 3:6 span and offers "Continue the story as it is written" (Adam eats in a cutscene the player watches) or "Save and return to the title". The close says "You refused. The Bible records that Adam ate." | 3.2, 4, S9 |
 | D2 | **Closing card** after 3:24: one line of narration, then 3:21 and 3:15, quoted only, without interpreting 3:15 | 4, B31, S10 |
 | D3 | **Name labels:** "The man" until 2:19, then "Adam". "Woman" from 2:22 to 3:19, then "Eve" at 3:20. The character select says "Adam" and "The woman", with "named Eve in Genesis 3:20" beneath | 2.1 |
-| D4 | **Modesty, hard rule M1:** before 3:7 the private parts are always turned away from the viewer or covered by hair, foliage, nearby plants or similar, in every sprite, pose, animation frame, portrait, cutscene shot and camera angle. Fig-leaf aprons after 3:7; coats of skins after 3:21. Enforced by construction (rigs with bound occluders), by an asset check, by a per-frame check in the running game, and by human review | 1, 5.3, 5.5, 5.6, 8, S2, S2b |
+| D4 | **Modesty, hard rule M1:** before 3:7 the private parts are always turned away from the viewer or covered by hair, foliage, nearby plants or similar, in every sprite, pose, animation frame, portrait, cutscene shot and camera angle. Fig-leaf aprons after 3:7; coats of skins after 3:21. Enforced by construction (rigs with bound occluders), by an asset check, by a per-frame check in the running game, and by human review. **Amended by D18 on 2026-10-10** (the session's reading of D18, to be confirmed by Jeffrey before final art is made): no foliage; the figures are never anatomical (the pelvic region of both is a smooth, featureless continuation of the body, with nothing drawn in it; the woman's chest is a plain torso shape covered by her long hair whenever it faces the viewer); enforced by a structural check of the rigs, the coverage check of the chest by hair, a check of the rendered image, and a figure that fails is not drawn (sections 1, 5.3, 5.6) | 1, 5.3, 5.5, 5.6, 8, S2, S2b |
 | D5 | **God** is never shown as a figure, only as light and a voice | 1 |
 | D6 | **The serpent:** upright on four small legs before 3:14, beautiful and crafty, not scary, called only "the serpent" | 1, 5.2 |
 | D7 | **Appearance:** Adam and the woman have very light brown skin, like people of Greek or Mediterranean ancestry, and dark hair | 5.2, 5.5 (palette) |
@@ -1434,3 +1506,4 @@ final character art. Independent slices (S2b beside S4, for example) may run in 
 | D15 | **"Neither shall ye touch it" (3:3):** touching the tree does nothing; only the optional "Look closer" note points at the difference from 2:17 | 3.2 |
 | D16 | **Offline play (PWA)** is in version 1, slice S11 | 6, S11 |
 | D17 | **2026-10-09, Jeffrey: Azure Container Apps express in the system's environment, replacing D10's Static Web Apps Free; D12's storage archive is not needed because every released image stays in the registry.** One container app per environment (`ca-adameve-tdd-web`, `ca-adameve-prod-web`) in `cae-adameve` (resource group `rg-adameve-apps`, Central US), deployable hosting still `own`. A small outermost project, `AdamEve.Host`, serves the published client and answers the health, version and build paths; the Build makes its image and the release pushes it | 0, 7.5, 7.6, 8, 9.1, 9.2, 9.4, S0, S3, question 1 |
+| D18 | **2026-10-10, Jeffrey, after comparing the two renderers on the test site:** "Three.js is better. Use perspective or parallax when possible. Make characters not have leaves covering. Woman has long hair covering breasts" Three.js draws the garden, with the canvas as its fallback; a perspective camera with a far layer in parallax; no companion foliage; the woman's long hair covers her chest. How modesty holds without the foliage is the session's reading of D18, to be confirmed by Jeffrey before final art is made: the notes of 2026-10-10 in sections 1, 5.3 and 5.6 | 1, 5.3, 5.6, 6, 7.1, D4 |

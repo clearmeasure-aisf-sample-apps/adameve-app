@@ -3,14 +3,14 @@ using AdamEve.Core.Game;
 namespace AdamEve.UnitTests.Garden;
 
 [TestFixture]
-public class RendererTrialTests
+public class RendererChoiceTests
 {
     [TestCase("three", RendererKind.Three)]
     [TestCase("Three", RendererKind.Three)]
     [TestCase(" canvas ", RendererKind.Canvas)]
     public void Parse_AName_ShouldBeItsRenderer(string name, RendererKind expected)
     {
-        RendererTrial.Parse(name).ShouldBe(expected);
+        RendererChoice.Parse(name).ShouldBe(expected);
     }
 
     [TestCase(null)]
@@ -19,45 +19,42 @@ public class RendererTrialTests
     [TestCase("three.js")]
     public void Parse_NoNameOrAnUnknownOne_ShouldBeNull(string? name)
     {
-        RendererTrial.Parse(name).ShouldBeNull();
+        RendererChoice.Parse(name).ShouldBeNull();
     }
 
     [TestCase("https://example.test/garden?renderer=three", RendererKind.Three)]
     [TestCase("https://example.test/garden?renderer=canvas", RendererKind.Canvas)]
-    [TestCase("https://example.test/garden?a=1&renderer=three#top", RendererKind.Three)]
-    [TestCase("?renderer=three", RendererKind.Three)]
+    [TestCase("https://example.test/garden?a=1&renderer=canvas#top", RendererKind.Canvas)]
+    [TestCase("?renderer=canvas", RendererKind.Canvas)]
     public void FromAddress_AnAddressThatAsksForARenderer_ShouldBeThatRenderer(string address, RendererKind expected)
     {
-        RendererTrial.FromAddress(address).ShouldBe(expected);
+        RendererChoice.FromAddress(address).ShouldBe(expected);
     }
 
     [TestCase(null)]
     [TestCase("https://example.test/garden")]
     [TestCase("https://example.test/garden?renderer=")]
     [TestCase("https://example.test/garden?renderer=other")]
-    [TestCase("https://example.test/garden?xrenderer=three")]
-    [TestCase("https://example.test/garden#renderer=three")]
+    [TestCase("https://example.test/garden?xrenderer=canvas")]
+    [TestCase("https://example.test/garden#renderer=canvas")]
     public void FromAddress_AnAddressThatAsksForNone_ShouldBeNull(string? address)
     {
-        RendererTrial.FromAddress(address).ShouldBeNull();
+        RendererChoice.FromAddress(address).ShouldBeNull();
+    }
+
+    [TestCase(null)]
+    [TestCase("https://example.test/garden")]
+    [TestCase("https://example.test/garden?renderer=other")]
+    [TestCase("https://example.test/garden?renderer=three")]
+    public void Choose_NothingAskedOrThreeAsked_ShouldBeThree(string? address)
+    {
+        RendererChoice.Choose(address).ShouldBe(RendererKind.Three);
     }
 
     [Test]
-    public void Choose_NothingAsked_ShouldBeTheCanvas()
+    public void Choose_TheAddressAsksForTheCanvas_ShouldBeTheCanvas()
     {
-        RendererTrial.Choose("https://example.test/garden", null).ShouldBe(RendererKind.Canvas);
-    }
-
-    [Test]
-    public void Choose_TheTabKeptThree_ShouldBeThree()
-    {
-        RendererTrial.Choose("https://example.test/garden", "three").ShouldBe(RendererKind.Three);
-    }
-
-    [Test]
-    public void Choose_TheAddressAsksForCanvasAndTheTabKeptThree_ShouldBeWhatTheAddressAsks()
-    {
-        RendererTrial.Choose("https://example.test/garden?renderer=canvas", "three").ShouldBe(RendererKind.Canvas);
+        RendererChoice.Choose("https://example.test/garden?renderer=canvas").ShouldBe(RendererKind.Canvas);
     }
 
     [Test]
@@ -65,15 +62,19 @@ public class RendererTrialTests
     {
         foreach (var kind in Enum.GetValues<RendererKind>())
         {
-            RendererTrial.Parse(RendererTrial.NameOf(kind)).ShouldBe(kind);
+            RendererChoice.Parse(RendererChoice.NameOf(kind)).ShouldBe(kind);
         }
     }
 
     [Test]
-    public void SessionKey_TheTrial_ShouldNotBeAKeyOfTheSaveFormat()
+    public void RendererKind_TheDefault_ShouldBeThree()
     {
-        RendererTrial.SessionKey.ShouldNotBe(AdamEve.Core.Saves.SaveCodec.SaveKey);
-        RendererTrial.SessionKey.ShouldNotBe(AdamEve.Core.Saves.SaveCodec.SettingsKey);
+        default(RendererKind).ShouldBe(RendererKind.Three);
+    }
+
+    [Test]
+    public void Choice_TheRenderer_ShouldNotBePartOfTheSaveFormat()
+    {
         typeof(AdamEve.Core.Saves.GameSettings).GetProperties().ShouldAllBe(property => !property.Name.Contains("Renderer", StringComparison.OrdinalIgnoreCase));
         typeof(AdamEve.Core.Saves.SaveGame).GetProperties().ShouldAllBe(property => !property.Name.Contains("Renderer", StringComparison.OrdinalIgnoreCase));
     }

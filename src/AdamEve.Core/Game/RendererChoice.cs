@@ -3,27 +3,41 @@ namespace AdamEve.Core.Game;
 /// <summary>What draws the garden.</summary>
 public enum RendererKind
 {
-    /// <summary>The canvas 2D renderer of the design (section 7.1): the default.</summary>
-    Canvas,
-
-    /// <summary>The Three.js (WebGL) renderer of the spike, loaded only when it is chosen.</summary>
+    /// <summary>
+    /// The Three.js (WebGL) renderer, with the perspective camera: the renderer of the game since decision D18
+    /// (design, sections 7.1 and 12).
+    /// </summary>
     Three,
+
+    /// <summary>
+    /// The canvas 2D renderer, flat: the fallback where WebGL is not to be had or its context is lost for good.
+    /// </summary>
+    Canvas,
 }
 
 /// <summary>
-/// The trial of a second renderer (docs/spike-threejs.md): which one a player asked for. The choice is asked for in
-/// the address of the garden (<c>?renderer=three</c>) or in the settings, and is kept for the tab only: it is not
-/// part of the saved game or of the kept settings.
+/// Which renderer a visit to the garden starts with. It is Three.js; the address of the garden can force the
+/// fallback (<c>?renderer=canvas</c>) for tests and for comparing the two. Nothing of it is kept: not in the saved
+/// game, not in the settings, not for the tab.
 /// </summary>
-public static class RendererTrial
+public static class RendererChoice
 {
     /// <summary>The name of the choice in the query string of the garden's address.</summary>
     public const string QueryName = "renderer";
 
-    /// <summary>The key of the choice in <c>sessionStorage</c>: it ends with the tab.</summary>
-    public const string SessionKey = "adameve.trial.renderer";
+    /// <summary>Why the canvas draws when the address asked for it.</summary>
+    public const string Asked = "asked";
 
-    /// <summary>The name of a renderer, as the address, the storage and the page's <c>data-renderer</c> spell it.</summary>
+    /// <summary>Why the canvas draws when the browser has no WebGL 2.</summary>
+    public const string WebGlUnavailable = "webgl-unavailable";
+
+    /// <summary>Why the canvas draws when the module of the Three.js renderer or Three.js itself could not be loaded.</summary>
+    public const string LoadFailed = "load-failed";
+
+    /// <summary>Why the canvas draws when the WebGL context was lost while playing and did not come back.</summary>
+    public const string ContextLost = "webgl-context-lost";
+
+    /// <summary>The name of a renderer, as the address and the page's <c>data-renderer</c> spell it.</summary>
     /// <param name="kind">The renderer.</param>
     public static string NameOf(RendererKind kind) => kind == RendererKind.Three ? "three" : "canvas";
 
@@ -65,11 +79,7 @@ public static class RendererTrial
         return null;
     }
 
-    /// <summary>
-    /// The renderer to start with: what the address asks for, otherwise what the tab kept, otherwise the canvas.
-    /// </summary>
+    /// <summary>The renderer to start with: Three.js, unless the address asks for the canvas.</summary>
     /// <param name="address">The address of the page.</param>
-    /// <param name="kept">The text kept under <see cref="SessionKey"/>, or null.</param>
-    public static RendererKind Choose(string? address, string? kept) =>
-        FromAddress(address) ?? Parse(kept) ?? RendererKind.Canvas;
+    public static RendererKind Choose(string? address) => FromAddress(address) ?? RendererKind.Three;
 }

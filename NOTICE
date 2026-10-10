@@ -19,4 +19,4 @@ Three.js
 
 src/AdamEve.Client/wwwroot/lib/three holds Three.js 0.185.1 (three.module.min.js and three.core.min.js), copyright
 2010-2026 three.js authors, under the MIT License (LICENSE.txt in that folder). It is unchanged, and it is loaded
-only by the trial of a second renderer (docs/spike-threejs.md).
+only by the renderer of the garden (docs/spike-threejs.md).

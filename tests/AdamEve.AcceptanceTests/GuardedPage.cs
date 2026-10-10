@@ -24,10 +24,29 @@ internal sealed class GuardedPage : IAsyncDisposable
 
     public List<string> RequestsOutsideTheOrigin { get; } = [];
 
-    public static async Task<GuardedPage> OpenAsync(IPlaywright playwright, string device, string engine, bool reducedMotion = false, IEnumerable<string>? browserArguments = null)
+    // A headless Chromium has WebGL only with one of these, by the machine it runs on. The first that gives a
+    // WebGL 2 context is used for every test, and the tests of the renderer name it and the renderer behind it.
+    private static readonly string[][] ChromiumArguments =
+    [
+        [],
+        ["--enable-unsafe-swiftshader"],
+        ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"],
+        ["--use-angle=gl-egl", "--enable-gpu", "--ignore-gpu-blocklist"],
+    ];
+
+    private static readonly SemaphoreSlim Probing = new(1, 1);
+    private static string[]? chromiumArguments;
+
+    /// <summary>What draws WebGL in the Chromium of the tests, as the browser names it.</summary>
+    public static string WebGlOfChromium { get; private set; } = "unknown";
+
+    /// <summary>
+    /// Opens a page on a device profile. The garden is drawn with WebGL (design, section 7.1), so the browser is
+    /// started in a way that has it.
+    /// </summary>
+    public static async Task<GuardedPage> OpenAsync(IPlaywright playwright, string device, string engine, bool reducedMotion = false)
     {
-        // The arguments are for the tests of the Three.js renderer: a headless browser may need one to have WebGL.
-        var browser = await playwright[engine].LaunchAsync(new() { Args = browserArguments });
+        var browser = await playwright[engine].LaunchAsync(new() { Args = await ArgumentsAsync(playwright, engine) });
         // The player's setting "reduce motion", as the browser reports it to the page (prefers-reduced-motion).
         var options = new BrowserNewContextOptions(playwright.Devices[device]) { ReducedMotion = reducedMotion ? ReducedMotion.Reduce : ReducedMotion.NoPreference };
         var context = await browser.NewContextAsync(options);
@@ -56,6 +75,50 @@ internal sealed class GuardedPage : IAsyncDisposable
         };
         page.PageError += (_, error) => guarded.Errors.Add(error);
         return guarded;
+    }
+
+    /// <summary>The arguments a browser of an engine needs on this machine to have WebGL 2.</summary>
+    private static async Task<string[]> ArgumentsAsync(IPlaywright playwright, string engine)
+    {
+        if (engine != "chromium")
+        {
+            return [];
+        }
+
+        await Probing.WaitAsync();
+        try
+        {
+            if (chromiumArguments is null)
+            {
+                foreach (var candidate in ChromiumArguments)
+                {
+                    await using var browser = await playwright.Chromium.LaunchAsync(new() { Args = candidate });
+                    var page = await browser.NewPageAsync();
+                    var renderer = await page.EvaluateAsync<string?>(
+                        """
+                        () => {
+                            const context = document.createElement('canvas').getContext('webgl2');
+                            if (!context) { return null; }
+                            const names = context.getExtension('WEBGL_debug_renderer_info');
+                            return names ? context.getParameter(names.UNMASKED_RENDERER_WEBGL) : 'not named';
+                        }
+                        """);
+                    if (renderer is not null)
+                    {
+                        chromiumArguments = candidate;
+                        WebGlOfChromium = renderer;
+                        break;
+                    }
+                }
+            }
+        }
+        finally
+        {
+            Probing.Release();
+        }
+
+        return chromiumArguments
+            ?? throw new InvalidOperationException("No headless Chromium here has WebGL 2 with any of the arguments tried: the renderer of the garden cannot be tested on this machine.");
     }
 
     public async ValueTask DisposeAsync()

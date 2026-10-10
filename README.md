@@ -16,20 +16,38 @@ an on-screen D-pad or a tap on a tile; the game is saved in the browser and resu
 not built yet. The game-written text is listed for review in [content/README.md](content/README.md). The slices
 that follow are in section 10 of the design.
 
-**Placeholder art.** Everything the game draws is made by code: flat colours, ellipses and rectangles, on the
-canvas in the garden and as shapes of the page at the title and in the days of creation. God is never drawn as a
+**Placeholder art.** Everything the game draws is made by code: flat colours, ellipses and rectangles, in the
+garden (where the renderer gives the trees, the thicket and the stones height from those same shapes) and as shapes
+of the page at the title and in the days of creation. God is never drawn as a
 figure: his presence is a warm light, shown while his voice speaks on a Scripture card. No image,
 sound or font file was generated, downloaded or added, and the sound setting has nothing to play yet. The figures
-of Adam and the woman are abstract cut-out rigs with companion foliage bound to the hip and, for the woman, hair
-over the chest (design, sections 1 and 5.3).
+of Adam and the woman are abstract cut-out rigs: seven plain blocks each, never anatomical, and for the woman long
+hair that covers her chest (design, sections 1 and 5.3, decision D18). They carry no foliage.
 
-**Modesty, rule M1.** `AdamEve.Core` holds one check (`ConcealmentChecker`), used twice. A unit test composes every
-frame of every animation of both rigs, in all eight facings and all three covering variants, and requires every
-pixel of every concealment zone to be covered. The running game makes the same check for each character in every
-frame it draws and writes the verdict on the game root (`data-concealment`); a frame that is not concealed gets the
-default foliage cluster drawn in front of the character and counts as a failure, which the full-system tests refuse.
-The character select and the two far figures of light of the sixth day are drawn from the same rigs and judged by
-the same check (`StillFigure`), with the verdict on the root of their page.
+**The garden in perspective (decision D18, 2026-10-10).** Three.js (WebGL 2) draws the garden through a perspective
+camera that follows the player, fixed in direction and tilt: nearer things are larger and cross the screen faster,
+a sun casts soft shadows, haze grows with distance, and behind the haze a far layer of hills and sky slides less
+than the ground. The camera is one model in `AdamEve.Core` (`PerspectiveCamera`): the game culls with it, reads a
+tap through it and judges each figure at the scale it gives, and the renderer builds its own camera from the same
+numbers. A character is a flat cut-out that faces the camera, never a body in space. Where WebGL 2 is not to be had,
+where its context is lost and does not come back, or with `…/garden?renderer=canvas`, the canvas 2D renderer draws
+instead, flat; the game root says so (`data-renderer`, `data-renderer-fallback`). The title, the days of creation,
+the reader and all text and menus are flat pages. `docs/spike-threejs.md` has the history.
+
+**Modesty, rule M1, as decision D18 amended it** (the session's reading of D18, to be confirmed by Jeffrey before
+final art is made; design, sections 1, 5.3 and 5.6). The figures are never anatomical: the pelvic region of both is
+a smooth, featureless continuation of the body shape, and the woman's chest is a plain torso shape covered by her
+long hair whenever it faces the viewer. Three checks hold it. `RigStructure` lists what a rig may hold (plain
+shapes, the seven blocks of the body, hair, the eyes, the apron and the coat, each in a colour of its kind): a rig
+with anything else does not load. `ConcealmentChecker` judges every frame: the hips cover the pelvic zone and
+nothing else reaches into it, and hair covers every pixel of the woman's chest zone that is not turned away. Unit
+tests run both over every frame of every animation of both rigs, in all eight facings and all three covering
+variants; the running game runs them for each character in every frame it draws and writes the verdict on the game
+root (`data-concealment`); a figure whose frame fails is not drawn and the frame counts as a failure, which the
+full-system tests refuse. A full-system test reads the pixels the renderer drew, for both figures in all eight
+facings on the three device profiles, and keeps a sheet of each for review (artifact `test-results`,
+`acceptance/**/m1-sheets/`). The character select and the two far figures of light of the sixth day are drawn from
+the same rigs and judged by the same checks (`StillFigure`), with the verdict on the root of their page.
 
 ## What is here
 
@@ -37,7 +55,7 @@ the same check (`StillFigure`), with the verdict on the root of their page.
 |---|---|
 | `src/AdamEve.Core` | The story machine (the title and the days of creation) and the world rules: the map, walking, pathfinding, the camera, the rigs and the M1 check, the render list, the save model. No package reference, no I/O |
 | `src/AdamEve.Content` | The canonical text, the game-written labels and the loaders of the content (glossary, map, rigs). References Core only |
-| `src/AdamEve.Client` | Blazor WebAssembly, standalone: the game, which runs in the browser. `wwwroot/js/render.js` is the one thin canvas module. A trial of a second renderer (Three.js, `wwwroot/js/render-three.js`, chosen with `?renderer=three`) is described in `docs/spike-threejs.md` |
+| `src/AdamEve.Client` | Blazor WebAssembly, standalone: the game, which runs in the browser. `wwwroot/js/render-three.js` draws the garden with Three.js (vendored in `wwwroot/lib/three/`), `wwwroot/js/render.js` is the canvas fallback, `wwwroot/js/shell.js` is what the two share |
 | `src/AdamEve.Host` | ASP.NET Core, the outermost project: serves the published client and answers the health paths. No game code. Published, it is the content of the container image |
 | `tests/AdamEve.UnitTests` | NUnit and Shouldly |
 | `tests/AdamEve.IntegrationTests` | The published site, served by the published host as a process (`ADAMEVE_BASE_URL`) |
@@ -69,7 +87,7 @@ Docker.
 | Compile | `dotnet build` in Release; a warning is an error |
 | UnitTests | `tests/AdamEve.UnitTests` |
 | Publish | `dotnet publish` of the host to `build/publish`, with the published client as its `wwwroot` |
-| PayloadBudget | The first load, as brotli, is 3.0 MB or less |
+| PayloadBudget | The first load (what the title needs), as brotli, is 3.0 MB or less; what the garden loads on demand is added up apart |
 | StaticFiles | Every file served as immutable has a fingerprint in its name; `files.json` lists every file of the site |
 | IntegrationTests | The published host as a process: the health paths, the headers, brotli, the fallback, 404, every file |
 | AcceptanceTests | Playwright against the same process, on the three device profiles |
@@ -126,7 +144,9 @@ stops, and costs nothing while stopped. The next request starts it: that first a
 **The payload budget.** The empty shell used about 2.3 MB of the 3.0 MB: the .NET runtime, its libraries and one
 ICU data file, as brotli. With slice S2 (the garden, its two script modules and the JSON serializers of the save)
 the build measured 2.37 MB; with slice S4 (the story machine, the title and the days of creation) it measures
-2.39 MB, which leaves about 0.6 MB.
+2.39 MB, which leaves about 0.6 MB. Since decision D18 the first load is what the title needs: the modules that
+draw the garden and Three.js (0.16 MB) are loaded on demand, when a player enters the garden, and are added up
+apart; a full-system test proves that the title and the reader ask for none of them.
 
 **Compression.** The publish step writes a brotli and a gzip file beside every file that compresses. The host
 answers with the one the browser accepts and compresses nothing itself, so the first load on the wire is the size

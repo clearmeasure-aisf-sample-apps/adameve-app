@@ -157,6 +157,34 @@ public class GardenContentTests
         Should.Throw<ContentFormatException>(() => RigLoader.Parse(bytes));
     }
 
+    [TestCase("\"role\": \"body\"", "\"role\": \"occluder\"", Description = "the companion foliage of before decision D18: no longer a kind of part")]
+    public void Parse_ARigWithAKindOfPartThatIsNoLongerOne_ShouldBeRefused(string from, string to)
+    {
+        var text = Encoding.UTF8.GetString(EmbeddedContent.Rig("woman"));
+        var bytes = Encoding.UTF8.GetBytes(text.Replace(from, to, StringComparison.Ordinal));
+
+        Should.Throw<ContentFormatException>(() => RigLoader.Parse(bytes)).Message.ShouldContain("occluder");
+    }
+
+    [TestCase("\"id\": \"eyeL\"", "\"id\": \"navel\"", "navel", Description = "a part that is not on the list")]
+    [TestCase("\"id\": \"torso\", \"bone\": \"torso\", \"shape\": \"rectangle\", \"w\": 15, \"h\": 15, \"colour\": \"#E2B994\"", "\"id\": \"torso\", \"bone\": \"torso\", \"shape\": \"rectangle\", \"w\": 15, \"h\": 15, \"colour\": \"#D9A07A\"", "torso", Description = "a third tone of skin")]
+    [TestCase("\"view\": \"front\", \"plain\": true", "\"view\": \"front\", \"by\": [\"hair\"]", "pelvis", Description = "the pelvic zone not declared plain")]
+    public void Load_ARigThatHoldsWhatTheAmendedModestyRuleDoesNotAllow_ShouldBeRefused(string from, string to, string named)
+    {
+        foreach (var name in new[] { "adam", "woman" })
+        {
+            var text = Encoding.UTF8.GetString(EmbeddedContent.Rig(name));
+            text.ShouldContain(from);
+            var changed = Encoding.UTF8.GetBytes(text.Replace(from, to, StringComparison.Ordinal));
+
+            Should.Throw<ContentFormatException>(() => GardenContent.Load(
+                EmbeddedContent.Map(),
+                name == "adam" ? changed : EmbeddedContent.Rig("adam"),
+                name == "woman" ? changed : EmbeddedContent.Rig("woman"),
+                EmbeddedContent.Animations())).Message.ShouldContain($"\"{named}\"");
+        }
+    }
+
     [TestCase("\"type\": \"water\"", "\"type\": \"lava\"", Description = "an unknown tile type")]
     [TestCase("\"name\": \"ground\"", "\"name\": \"floor\"", Description = "no ground layer")]
     [TestCase("\"tileheight\": 32", "\"tileheight\": 16", Description = "tiles that are not square")]

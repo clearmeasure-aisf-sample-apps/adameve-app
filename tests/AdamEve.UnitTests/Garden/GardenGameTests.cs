@@ -16,10 +16,14 @@ public class GardenGameTests
         private readonly double[] input = new double[InputBlock.Length];
         private double now;
 
-        public StubBrowser(SaveGame? save = null, Rig? adam = null, double width = 800, double height = 450)
+        private double viewWidth;
+        private double viewHeight;
+
+        public StubBrowser(SaveGame? save = null, Rig? adam = null, double width = 800, double height = 450, Rig? woman = null, bool flat = false)
         {
             Garden = StubMap.Shipped();
-            Game = new GardenGame(Garden.Map, adam ?? Garden.Adam, Garden.Woman, Garden.Animations, save);
+            Game = new GardenGame(Garden.Map, adam ?? Garden.Adam, woman ?? Garden.Woman, Garden.Animations, save);
+            input[InputBlock.Projection] = flat ? InputBlock.Flat : InputBlock.Perspective;
             Turn(width, height);
             Frame();
         }
@@ -34,9 +38,18 @@ public class GardenGameTests
 
         public void Turn(double width, double height)
         {
+            viewWidth = width;
+            viewHeight = height;
             input[InputBlock.ViewWidth] = width;
             input[InputBlock.ViewHeight] = height;
             input[InputBlock.PixelRatio] = 2;
+        }
+
+        /// <summary>The perspective camera of the last frame, built from the numbers the render list carries: as the renderer builds its own.</summary>
+        public PerspectiveCamera Camera()
+        {
+            var distance = List[RenderList.EyeHeight] / Math.Sin(List[RenderList.Tilt]);
+            return new PerspectiveCamera(viewWidth, viewHeight, List[RenderList.EyeX], List[RenderList.EyeY] - (distance * Math.Cos(List[RenderList.Tilt])), distance);
         }
 
         public FrameEvents Frame(int held = 0, int pressed = 0, (double X, double Y)? tap = null, bool menu = false)
@@ -64,16 +77,17 @@ public class GardenGameTests
             return events;
         }
 
-        public (double X, double Y) ScreenOf(TilePos tile) => (
-            (((tile.X + 0.5) * 32) - List[RenderList.CameraX]) * List[RenderList.Scale],
-            (((tile.Y + 0.5) * 32) - List[RenderList.CameraY]) * List[RenderList.Scale]);
+        /// <summary>Where the middle of a tile lies on the screen: through the camera the frame was composed for.</summary>
+        public (double X, double Y) ScreenOf(TilePos tile) => (int)List[RenderList.Projection] == InputBlock.Flat
+            ? ((((tile.X + 0.5) * 32) - List[RenderList.CameraX]) * List[RenderList.Scale], (((tile.Y + 0.5) * 32) - List[RenderList.CameraY]) * List[RenderList.Scale])
+            : Camera().Project((tile.X + 0.5) * 32, (tile.Y + 0.5) * 32);
 
-        public IEnumerable<(int AtlasId, double X, double Y, int Flags)> Entries()
+        public IEnumerable<(int AtlasId, double X, double Y, int Character)> Entries()
         {
             for (var entry = 0; entry < (int)List[RenderList.Count]; entry++)
             {
                 var at = RenderList.HeaderLength + (entry * RenderList.EntryLength);
-                yield return ((int)List[at], List[at + RenderList.Transform + 4], List[at + RenderList.Transform + 5], (int)List[at + RenderList.Flags]);
+                yield return ((int)List[at], List[at + RenderList.Transform + 4], List[at + RenderList.Transform + 5], (int)List[at + RenderList.Character]);
             }
         }
     }
@@ -210,7 +224,8 @@ public class GardenGameTests
         browser.Verdicts.ShouldAllBe(verdict => verdict == "ok");
         browser.Game.ExposedFrames.ShouldBe(0);
         browser.List[RenderList.Concealment].ShouldBe(0);
-        browser.Entries().ShouldAllBe(entry => (entry.Flags & RenderList.FailClosed) == 0);
+        browser.Entries().Count(entry => entry.Character == 1).ShouldBeGreaterThanOrEqualTo(8);
+        browser.Entries().Count(entry => entry.Character == 2).ShouldBeGreaterThanOrEqualTo(8);
     }
 
     [Test]
@@ -338,20 +353,25 @@ public class GardenGameTests
     }
 
     [Test]
-    public void Frame_TheRenderList_ShouldDrawTheOccluderLayerAfterEveryCharacterAndSprite()
+    public void Frame_TheRenderList_ShouldListEveryPartOfBothFiguresInTheOrderOfTheirDepthAndNoFoliage()
     {
         var browser = new StubBrowser();
         var garden = browser.Garden;
         var entries = browser.Entries().ToList();
-        var firstOccluder = entries.FindIndex(entry => (entry.Flags & RenderList.OccluderLayer) != 0);
+        var atlas = browser.Game.Atlas;
 
-        var foliage = garden.Adam.Parts.Count(part => part.Role == PartRole.Occluder) + garden.Woman.Parts.Count(part => part.Role == PartRole.Occluder);
+        foreach (var (rig, index) in new[] { (garden.Adam, 0), (garden.Woman, 1) })
+        {
+            var listed = entries.Where(entry => entry.Character == index + 1).Select(entry => entry.AtlasId).ToList();
+            var parts = listed.Select(id => rig.Parts[id - atlas.PartId(index, 0)]).ToList();
 
-        firstOccluder.ShouldBeGreaterThan(0);
-        entries.Skip(firstOccluder).ShouldAllBe(entry => (entry.Flags & RenderList.OccluderLayer) != 0);
-        entries.Count(entry => (entry.Flags & RenderList.OccluderLayer) != 0).ShouldBe(foliage);
-        entries.ShouldContain(entry => entry.AtlasId == browser.Game.Atlas.SpriteId(TileKind.TreeOfLife));
-        entries.ShouldAllBe(entry => entry.AtlasId >= 0 && entry.AtlasId < browser.Game.Atlas.Count);
+            parts.Select(part => part.Id).ShouldBe(rig.Parts.Where(part => part.Front is not null && part.WornWith(Covering.None)).OrderBy(part => part.Front!.Depth).Select(part => part.Id));
+            parts.ShouldAllBe(part => RigStructure.AllowedColours(PartRole.Body).Contains(part.Colour) || part.Colour == RigStructure.Hair);
+        }
+
+        entries.ShouldContain(entry => entry.AtlasId == atlas.SpriteId(TileKind.TreeOfLife));
+        entries.ShouldAllBe(entry => entry.AtlasId >= 0 && entry.AtlasId < atlas.Count);
+        atlas.Count.ShouldBe(garden.Adam.Parts.Count + garden.Woman.Parts.Count + 4, "the atlas holds the parts of the two rigs and the four trees: no foliage cluster");
     }
 
     [Test]
@@ -375,7 +395,7 @@ public class GardenGameTests
     }
 
     [Test]
-    public void Frame_ACharacterWithoutAConcealmentRecord_ShouldDrawTheDefaultFoliageInFrontAndReport()
+    public void Frame_ACharacterWithoutAConcealmentRecord_ShouldNotBeDrawnAtAllAndBeReportedOnEveryFrame()
     {
         var garden = StubMap.Shipped();
         var unrecorded = StubMap.With(garden.Adam, concealment: []);
@@ -384,29 +404,42 @@ public class GardenGameTests
         browser.Frames(5);
 
         var entries = browser.Entries().ToList();
-        var failClosed = entries.Where(entry => (entry.Flags & RenderList.FailClosed) != 0).ToList();
-        var feetX = (browser.Game.PlayerTile.X + 0.5) * 32;
-        browser.Game.Concealment.ShouldBe("fail:adam:pelvis");
-        browser.Verdicts.ShouldAllBe(verdict => verdict == "fail:adam:pelvis");
+        browser.Game.Concealment.ShouldBe("fail:adam:structure");
+        browser.Verdicts.ShouldAllBe(verdict => verdict == "fail:adam:structure");
         browser.Game.ExposedFrames.ShouldBe(6);
-        browser.Game.VerdictNames[(int)browser.List[RenderList.Concealment]].ShouldBe("fail:adam:pelvis");
+        browser.Game.VerdictNames[(int)browser.List[RenderList.Concealment]].ShouldBe("fail:adam:structure");
         browser.List[RenderList.ExposedFrames].ShouldBe(6);
-        failClosed.Select(entry => entry.AtlasId).ShouldBe(Enumerable.Range(0, DefaultFoliage.Shapes.Count).Select(browser.Game.Atlas.DefaultFoliageId));
-        failClosed.ShouldAllBe(entry => (entry.Flags & RenderList.OccluderLayer) != 0);
-        failClosed.Select(entry => entry.X - feetX).ShouldBe(DefaultFoliage.Shapes.Select(shape => shape.X));
-        entries.FindLastIndex(entry => (entry.Flags & RenderList.OccluderLayer) == 0).ShouldBeLessThan(entries.IndexOf(failClosed[0]));
+        entries.ShouldAllBe(entry => entry.Character != 1, "a figure that does not pass is not drawn (fail closed)");
+        entries.Count(entry => entry.Character == 2).ShouldBeGreaterThan(8, "the other figure passes and is drawn");
     }
 
     [Test]
-    public void Frame_ACharacterWhoseFoliageIsMissing_ShouldDrawTheDefaultFoliageForThatCharacterOnly()
+    public void Frame_TheWomanWithoutTheHairOverHerChest_ShouldNotBeDrawnAndBeReportedForThatCharacterOnly()
     {
         var garden = StubMap.Shipped();
-        var bare = StubMap.With(garden.Adam, parts: garden.Adam.Parts.Where(part => part.Role != PartRole.Occluder));
+        var shorn = StubMap.With(garden.Woman, parts: garden.Woman.Parts.Where(part => !part.Id.StartsWith("hair-front", StringComparison.Ordinal)));
 
-        var browser = new StubBrowser(adam: bare);
+        var browser = new StubBrowser(woman: shorn);
+        browser.Frames(3);
 
+        browser.Game.Concealment.ShouldBe("fail:woman:chest");
+        browser.Game.ExposedFrames.ShouldBe(4);
+        browser.Entries().ShouldAllBe(entry => entry.Character != 2);
+        browser.Entries().Count(entry => entry.Character == 1).ShouldBeGreaterThan(8);
+    }
+
+    [Test]
+    public void Frame_ACharacterWithSomethingDrawnInThePelvicZone_ShouldNotBeDrawnAndBeReported()
+    {
+        var garden = StubMap.Shipped();
+        var placement = new PartPlacement(0, 14, 30, 0);
+        var marked = StubMap.With(garden.Adam, parts: garden.Adam.Parts.Append(new RigPart("hair-low", "head", PartShape.Ellipse, 6, 44, RigStructure.Hair, PartRole.Hair, [], placement, placement, placement, 0)));
+
+        var browser = new StubBrowser(adam: marked);
+
+        RigStructure.Violations(marked).ShouldBeEmpty("the rig passes the lists: the frame check is what refuses it");
         browser.Game.Concealment.ShouldBe("fail:adam:pelvis");
-        browser.Entries().Count(entry => (entry.Flags & RenderList.FailClosed) != 0).ShouldBe(DefaultFoliage.Shapes.Count);
+        browser.Entries().ShouldAllBe(entry => entry.Character != 1);
     }
 
     [Test]
@@ -418,6 +451,9 @@ public class GardenGameTests
         browser.Game.VerdictNames.ShouldContain("fail:adam:pelvis");
         browser.Game.VerdictNames.ShouldContain("fail:woman:pelvis");
         browser.Game.VerdictNames.ShouldContain("fail:woman:chest");
+        browser.Game.VerdictNames.ShouldContain("fail:adam:structure");
+        browser.Game.VerdictNames.ShouldContain("fail:woman:structure");
+        browser.Game.VerdictNames.ShouldBeUnique();
     }
 
     [Test]
@@ -452,24 +488,120 @@ public class GardenGameTests
         (RenderList.Anchors + (RenderList.AnchorCount * 2)).ShouldBeLessThanOrEqualTo(RenderList.HeaderLength);
         foreach (var entry in entries)
         {
-            var character = entry.Flags >> RenderList.CharacterShift;
             var sprite = Enum.GetValues<TileKind>().Any(kind => browser.Game.Atlas.SpriteId(kind) == entry.AtlasId);
-            character.ShouldBe(sprite ? 0 : entry.AtlasId < garden.Adam.Parts.Count ? 1 : 2);
+            entry.Character.ShouldBe(sprite ? 0 : entry.AtlasId < garden.Adam.Parts.Count ? 1 : 2);
         }
 
-        entries.Count(entry => entry.Flags >> RenderList.CharacterShift == 1).ShouldBeGreaterThan(garden.Adam.Parts.Count(part => part.Role == PartRole.Occluder));
-        entries.Count(entry => entry.Flags >> RenderList.CharacterShift == 2).ShouldBeGreaterThan(garden.Woman.Parts.Count(part => part.Role == PartRole.Occluder));
+        entries.Count(entry => entry.Character == 1).ShouldBeGreaterThan(8);
+        entries.Count(entry => entry.Character == 2).ShouldBeGreaterThan(8);
+    }
+
+    [TestCase(1280, 720)]
+    [TestCase(412, 660)]
+    [TestCase(839, 412)]
+    [TestCase(390, 520)]
+    public void Frame_TheRenderList_ShouldCarryThePerspectiveCameraThatFollowsThePlayer(double width, double height)
+    {
+        var browser = new StubBrowser(SaveAt(29, 22), width: width, height: height);
+        var expected = PerspectiveCamera.Follow(width, height, 29.5 * 32, 22.5 * 32, browser.Garden.Map);
+
+        var camera = browser.Camera();
+
+        browser.List[RenderList.Projection].ShouldBe(InputBlock.Perspective);
+        browser.List[RenderList.EyeX].ShouldBe(expected.EyeX);
+        browser.List[RenderList.EyeHeight].ShouldBe(expected.EyeHeight);
+        browser.List[RenderList.EyeY].ShouldBe(expected.EyeY);
+        browser.List[RenderList.Tilt].ShouldBe(PerspectiveCamera.TiltRadians);
+        browser.List[RenderList.FieldOfView].ShouldBe(PerspectiveCamera.FieldOfViewRadians);
+        browser.List[RenderList.HazeStart].ShouldBe(expected.HazeStart);
+        browser.List[RenderList.HazeEnd].ShouldBe(expected.HazeEnd);
+        browser.List[RenderList.FigureDepthHeight].ShouldBe(PerspectiveCamera.FigureDepthHeight);
+        browser.List[RenderList.Scale].ShouldBe(expected.Scale);
+        camera.Distance.ShouldBe(expected.Distance, 1e-9);
+        camera.FocusY.ShouldBe(expected.FocusY, 1e-9);
+        (RenderList.FigureDepthHeight + 1).ShouldBeLessThanOrEqualTo(RenderList.HeaderLength);
+    }
+
+    [TestCase(1280, 720)]
+    [TestCase(412, 660)]
+    [TestCase(839, 412)]
+    public void Frame_ATapOnEachTileAroundThePlayerSeenThroughThePerspectiveCamera_ShouldWalkToThatTile(double width, double height)
+    {
+        var open = OpenGround(StubMap.Shipped().Map);
+
+        foreach (var (dx, dy) in new[] { (0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1) })
+        {
+            var browser = new StubBrowser(SaveAt(open.X, open.Y), width: width, height: height);
+            var goal = new TilePos(open.X + dx, open.Y + dy);
+
+            browser.Frame(tap: browser.ScreenOf(goal));
+            browser.Frames(60);
+
+            browser.Game.PlayerTile.ShouldBe(goal);
+        }
     }
 
     [Test]
-    public void Frame_ACharacterWhoseFoliageIsMissing_ShouldMarkTheDefaultFoliageAsPartOfThatCharacter()
+    public void Frame_ATapNearTheTopOfThePlayArea_ShouldNameAFartherTileThanAFlatPictureWould()
     {
-        var garden = StubMap.Shipped();
-        var bare = StubMap.With(garden.Adam, parts: garden.Adam.Parts.Where(part => part.Role != PartRole.Occluder));
+        var browser = new StubBrowser(SaveAt(29, 24), width: 1280, height: 720);
+        var map = browser.Garden.Map;
+        var camera = browser.Camera();
 
-        var browser = new StubBrowser(adam: bare);
+        var under = camera.TileAt(640, 150, map).ShouldNotBeNull();
+        var flat = Camera.Follow(1280, 720, 29.5 * 32, 24.5 * 32, map).TileAt(640, 150, map).ShouldNotBeNull();
 
-        browser.Entries().Where(entry => (entry.Flags & RenderList.FailClosed) != 0).ShouldAllBe(entry => entry.Flags >> RenderList.CharacterShift == 1);
+        under.X.ShouldBe(29);
+        under.Y.ShouldBeLessThan(flat.Y);
+    }
+
+    [Test]
+    public void Frame_TheRenderList_ShouldListTheTreesThePerspectiveCameraSeesAndNotTheWholeMap()
+    {
+        var browser = new StubBrowser(SaveAt(29, 24), width: 1280, height: 720);
+        var map = browser.Garden.Map;
+        var camera = browser.Camera();
+        var atlas = browser.Game.Atlas;
+        var (firstRow, lastRow) = camera.VisibleRows(map);
+        var expected = new List<(double X, double Y)>();
+        for (var row = firstRow; row <= lastRow; row++)
+        {
+            var (firstColumn, lastColumn) = camera.VisibleColumns(row, map);
+            for (var column = firstColumn; column <= lastColumn; column++)
+            {
+                if (atlas.SpriteId(map.KindAt(new TilePos(column, row))) >= 0)
+                {
+                    expected.Add(((column + 0.5) * 32, ((row + 1) * 32) - 6));
+                }
+            }
+        }
+
+        var listed = browser.Entries().Where(entry => entry.Character == 0).Select(entry => (entry.X, entry.Y)).ToList();
+        var all = Enumerable.Range(0, map.Width * map.Height).Count(index => atlas.SpriteId(map.KindAt(new TilePos(index % map.Width, index / map.Width))) >= 0);
+
+        listed.ShouldBe(expected);
+        listed.Count.ShouldBeGreaterThan(3);
+        listed.Count.ShouldBeLessThan(all);
+        camera.VisibleColumns(firstRow, map).Last.ShouldBeGreaterThan(camera.VisibleColumns(lastRow, map).Last, "a far row is wider than a near one");
+    }
+
+    [Test]
+    public void Frame_WithTheFlatProjectionOfTheFallbackRenderer_ShouldCullAndReadATapAsAFlatPictureDoes()
+    {
+        var browser = new StubBrowser(SaveAt(29, 20), flat: true);
+        var map = browser.Garden.Map;
+        var flat = Camera.Follow(800, 450, 29.5 * 32, 20.5 * 32, map);
+        var goal = new TilePos(27, 19);
+
+        browser.List[RenderList.Projection].ShouldBe(InputBlock.Flat);
+        browser.List[RenderList.CameraX].ShouldBe(flat.X);
+        browser.List[RenderList.CameraY].ShouldBe(flat.Y);
+        browser.List[RenderList.Scale].ShouldBe(flat.Scale);
+        browser.Entries().Where(entry => entry.Character == 0).ShouldAllBe(entry => entry.Y >= flat.Y - 64 && entry.Y <= flat.Y + (450 / flat.Scale) + 128);
+        browser.Frame(tap: ((((goal.X + 0.5) * 32) - flat.X) * flat.Scale, (((goal.Y + 0.5) * 32) - flat.Y) * flat.Scale));
+        browser.Frames(90);
+        browser.Game.PlayerTile.ShouldBe(goal);
+        browser.Verdicts.ShouldAllBe(verdict => verdict == "ok");
     }
 
     [Test]

@@ -124,7 +124,7 @@ public class CreationPictureTests
     [TestCase(3, null)]
     [TestCase(1, CreationPicture.FigureLight)]
     [TestCase(2, CreationPicture.FigureLight)]
-    public void Compose_AdamAndTheWomanStandingAsTheGameDrawsThem_ShouldHaveTheVerdictOkAndNoDefaultFoliage(double scale, int? light)
+    public void Compose_AdamAndTheWomanStandingAsTheGameDrawsThem_ShouldHaveTheVerdictOkAndEveryPartOfTheRig(double scale, int? light)
     {
         var garden = StubMap.Shipped();
 
@@ -139,28 +139,34 @@ public class CreationPictureTests
     }
 
     [Test]
-    public void Compose_AFigure_ShouldDrawTheCompanionFoliageAfterTheBody()
+    public void Compose_AFigure_ShouldDrawNoFoliageAndTheWomansHairOverHerChest()
     {
-        var woman = StubMap.Shipped().Woman;
-        var occluders = woman.Parts.Count(part => part.Role == PartRole.Occluder && part.WornWith(Covering.None));
+        var garden = StubMap.Shipped();
+        int[] greens = [0x3E8E4E, 0x2F7A44, 0x57A65B, 0x4E9A4A];
 
-        var figure = StillFigure.Compose(woman, Idle(), Facing.S, Covering.None, 2);
+        var adam = StillFigure.Compose(garden.Adam, Idle(), Facing.S, Covering.None, 2);
+        var woman = StillFigure.Compose(garden.Woman, Idle(), Facing.S, Covering.None, 2);
 
-        occluders.ShouldBeGreaterThan(0);
-        figure.Shapes.TakeLast(occluders).Select(shape => shape.Colour).ShouldBe(woman.Parts.Where(part => part.Role == PartRole.Occluder).Select(part => part.Colour), ignoreOrder: true);
+        adam.Shapes.Concat(woman.Shapes).ShouldAllBe(shape => !greens.Contains(shape.Colour));
+        woman.Shapes.Count(shape => shape.Colour == 0x2B1D16).ShouldBeGreaterThan(adam.Shapes.Count(shape => shape.Colour == 0x2B1D16) + 5);
+        woman.Shapes[^1].Colour.ShouldBe(0x2B1D16, "the hair over her chest is painted last");
     }
 
     [Test]
-    public void Compose_ARigWithoutItsCompanionFoliage_ShouldFailClosedWithTheDefaultFoliageInFrontAndNameTheZone()
+    public void Compose_ARigThatDoesNotPass_ShouldFailClosedWithNothingDrawnAndNameWhatFailed()
     {
-        var adam = StubMap.Shipped().Adam;
-        var bare = StubMap.With(adam, parts: adam.Parts.Where(part => part.Role != PartRole.Occluder));
+        var garden = StubMap.Shipped();
+        var shorn = StubMap.With(garden.Woman, parts: garden.Woman.Parts.Where(part => !part.Id.StartsWith("hair-front", StringComparison.Ordinal)));
+        var marked = StubMap.With(garden.Adam, parts: garden.Adam.Parts.Append(new RigPart("navel", "hip", PartShape.Ellipse, 2, 2, 0x2B1D16, PartRole.Detail, [], new PartPlacement(0, 0, 30, 0), null, null, 0)));
 
-        var figure = StillFigure.Compose(bare, Idle(), Facing.S, Covering.None, 2);
+        var woman = StillFigure.Compose(shorn, Idle(), Facing.S, Covering.None, 2);
+        var adam = StillFigure.Compose(marked, Idle(), Facing.S, Covering.None, 2);
 
-        figure.Concealment.ShouldBe("fail:adam:pelvis");
-        figure.Shapes.TakeLast(DefaultFoliage.Shapes.Count).Select(shape => shape.Colour).ShouldBe(DefaultFoliage.Shapes.Select(shape => shape.Colour));
-        StillFigure.VerdictOf([StillFigure.Compose(adam, Idle(), Facing.S, Covering.None, 2), figure]).ShouldBe("fail:adam:pelvis");
+        woman.Concealment.ShouldBe("fail:woman:chest");
+        woman.Shapes.ShouldBeEmpty();
+        adam.Concealment.ShouldBe("fail:adam:structure");
+        adam.Shapes.ShouldBeEmpty();
+        StillFigure.VerdictOf([StillFigure.Compose(garden.Adam, Idle(), Facing.S, Covering.None, 2), woman]).ShouldBe("fail:woman:chest");
         StillFigure.VerdictOf([]).ShouldBe("ok");
     }
 }

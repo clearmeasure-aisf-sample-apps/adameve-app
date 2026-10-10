@@ -1,8 +1,9 @@
 namespace AdamEve.Core.World;
 
 /// <summary>
-/// What the play area shows: about 15 by 9 tiles in landscape and 9 tiles across in portrait (design, section 6),
-/// centred on the player and kept inside the map.
+/// The flat camera of the fallback renderer (the canvas, where WebGL is not to be had): about 15 by 9 tiles in
+/// landscape and 9 tiles across in portrait (design, section 6), centred on the player and kept inside the map.
+/// The garden is drawn in perspective otherwise (<see cref="PerspectiveCamera"/>).
 /// </summary>
 /// <param name="Scale">Play-area pixels for one logical pixel.</param>
 /// <param name="X">The logical pixel of the map at the left edge of the play area.</param>

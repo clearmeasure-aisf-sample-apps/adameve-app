@@ -57,9 +57,6 @@ Not in the glossary yet, because the design's list gives them no definition: *on
 | | L |
 | | XL |
 | Title and garden, the setting that turns sound on and off | Sound |
-| Garden, temporary: the setting of the trial of the Three.js renderer (`docs/spike-threejs.md`); it goes when the trial ends | Renderer (trial) |
-| | Canvas |
-| | Three.js |
 | Garden, the D-pad buttons, read by a screen reader | Up |
 | | Down |
 | | Left |
@@ -77,7 +74,7 @@ Which verses a day shows, where the player's one gesture of a day falls and on w
 references in `src/AdamEve.Core/Story/CreationStory.cs`, never text. The picture of each day is placeholder art
 made by code (`CreationPicture`): flat ellipses and rectangles, no image file. God is never drawn as a figure: his
 presence is a light, shown while his voice speaks. The two figures of light of Genesis 1:26 to 1:28 are the rigs
-below, in one pale colour, far away, judged by the same modesty check.
+below, in one pale colour, far away, judged by the same modesty checks.
 
 ## The garden (slice S2)
 
@@ -86,10 +83,11 @@ Not text, and not generated: written by hand as data, and drawn by the game as f
 | File | What |
 |---|---|
 | `maps/garden.tmj` | The map, 64 by 48 tiles, as Tiled JSON: the layer `ground`, the regions and the starting tiles. Three regions are open: the Central Glade, the Spring of Eden and the Pison Meadows; everything else is thicket |
-| `rigs/adam.rig.json`, `rigs/woman.rig.json` | The placeholder rigs: bones, parts (one ellipse or rectangle each, in one flat colour), the concealment zones, the companion foliage and hair that cover them, and a concealment record for every zone, view and covering variant (design, sections 5.3 and 5.6) |
+| `rigs/adam.rig.json`, `rigs/woman.rig.json` | The placeholder rigs: bones, parts (one ellipse or rectangle each, in one flat colour), the concealment zones, the woman's long hair that covers her chest, and a concealment record for every zone, view and covering variant (design, sections 5.3 and 5.6, as decision D18 amended them) |
 | `rigs/person.anim.json` | The keyframes of `idle` and `walk`, for both rigs |
 
-The placeholder figures are abstract by construction: no part has anatomical detail, and a unit test
-(`ConcealmentTests`) composes every frame of every animation in all eight facings and proves that every
-concealment zone is covered. They are placeholders until the asset pipeline of slice S2b exists; no image, sound
+The placeholder figures are abstract by construction and never anatomical: the body of each is the same seven
+plain blocks, the pelvic region is the body's own smooth shape with nothing drawn in it, and the woman's long hair
+covers her chest. They carry no foliage (decision D18). Unit tests (`RigStructureTests`, `ConcealmentTests`) hold a
+rig to the lists of what it may contain and compose every frame of every animation in all eight facings. They are placeholders until the asset pipeline of slice S2b exists; no image, sound
 or font file is part of them.

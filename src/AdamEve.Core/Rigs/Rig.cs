@@ -5,10 +5,13 @@ namespace AdamEve.Core.Rigs;
 /// <summary>What covers a character (design, sections 1 and 5.3). It drives the modesty rule M1.</summary>
 public enum Covering
 {
-    /// <summary>Before Genesis 3:7: companion foliage and hair.</summary>
+    /// <summary>
+    /// Before Genesis 3:7: nothing is worn. The figures are never anatomical (design, decision D18): the pelvic
+    /// region is the body's own smooth shape, and the woman's long hair covers her chest.
+    /// </summary>
     None,
 
-    /// <summary>Genesis 3:7 to 3:21: the fig-leaf apron replaces the foliage; hair still covers the woman's chest.</summary>
+    /// <summary>Genesis 3:7 to 3:21: the fig-leaf apron; hair still covers the woman's chest.</summary>
     Aprons,
 
     /// <summary>From Genesis 3:21: the coats of skins.</summary>
@@ -46,9 +49,6 @@ public enum PartRole
 
     /// <summary>A hair layer, bound to the head.</summary>
     Hair,
-
-    /// <summary>Companion foliage: plants of the garden, bound to the hip and drawn in the layer in front of the character.</summary>
-    Occluder,
 
     /// <summary>The fig-leaf apron (Genesis 3:7).</summary>
     Apron,
@@ -147,15 +147,19 @@ public sealed record ConcealmentZone(string Id, string Bone, string On, IReadOnl
 /// <param name="Covering">The covering variant.</param>
 /// <param name="View">The view.</param>
 /// <param name="FacingAway">The zone is turned away from the viewer. Only the back view may declare it.</param>
-/// <param name="By">The roles of the parts that cover the zone, when it is not turned away.</param>
-public sealed record ConcealmentRecord(string Zone, Covering Covering, RigView View, bool FacingAway, IReadOnlyList<PartRole> By);
+/// <param name="By">The roles of the parts that cover the zone, when it is neither turned away nor plain.</param>
+/// <param name="Plain">
+/// The zone is the body's own smooth, featureless shape (design, decision D18): nothing is drawn there but the body
+/// part it lies on, in one flat colour. The check then refuses every other part that reaches into the zone.
+/// </param>
+public sealed record ConcealmentRecord(string Zone, Covering Covering, RigView View, bool FacingAway, IReadOnlyList<PartRole> By, bool Plain = false);
 
 /// <summary>
 /// A cut-out rig (design, section 5.3): parts on a small skeleton, its concealment zones and how each is concealed.
 /// </summary>
 public sealed class Rig
 {
-    private static readonly PartRole[] CoveringRoles = [PartRole.Hair, PartRole.Occluder, PartRole.Apron, PartRole.Coat];
+    private static readonly PartRole[] CoveringRoles = [PartRole.Hair, PartRole.Apron, PartRole.Coat];
 
     // The first record of each zone, covering variant and view, when it is one that can conceal.
     private readonly ConcealmentRecord?[] records;
@@ -236,7 +240,7 @@ public sealed class Rig
             }
 
             seen[slot] = true;
-            var conceals = record.FacingAway || (record.By.Count > 0 && record.By.All(role => CoveringRoles.Contains(role)));
+            var conceals = record.FacingAway || record.Plain || (record.By.Count > 0 && record.By.All(role => CoveringRoles.Contains(role)));
             records[slot] = conceals ? record : null;
         }
     }
@@ -283,8 +287,8 @@ public sealed class Rig
 
     /// <summary>
     /// The valid concealment record of a zone for a facing under a covering variant, or null. A record that declares
-    /// "facing away" is valid only for the three back facings, and a record that names no covering role is not a
-    /// record: both leave the frame without one, and it fails closed.
+    /// "facing away" is valid only for the three back facings, and a record that is neither plain nor names a
+    /// covering role is not a record: both leave the frame without one, and it fails closed.
     /// </summary>
     /// <param name="zone">The zone.</param>
     /// <param name="facing">The facing.</param>

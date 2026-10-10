@@ -6,7 +6,7 @@ using AdamEve.Core.Rigs;
 namespace AdamEve.Content.Garden;
 
 /// <summary>
-/// Reads the rigs (<c>content/rigs/*.rig.json</c>: parts, bones, concealment zones, occluder bindings, covering
+/// Reads the rigs (<c>content/rigs/*.rig.json</c>: parts, bones, concealment zones, hair bindings, covering
 /// variants) and their animations (<c>content/rigs/*.anim.json</c>: keyframes).
 /// </summary>
 public static class RigLoader
@@ -116,7 +116,8 @@ public static class RigLoader
         Name<Covering>(record.Covering),
         Name<RigView>(record.View),
         record.FacingAway,
-        [.. (record.By ?? []).Select(Name<PartRole>)]);
+        [.. (record.By ?? []).Select(Name<PartRole>)],
+        record.Plain);
 
     private static T Name<T>(string? text)
         where T : struct, Enum
@@ -233,6 +234,8 @@ internal sealed class RecordFile
     public string? View { get; set; }
 
     public bool FacingAway { get; set; }
+
+    public bool Plain { get; set; }
 
     public List<string>? By { get; set; }
 }

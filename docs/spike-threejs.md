@@ -5,6 +5,45 @@ This is the spike: the garden of slice S2 drawn by a second renderer, Three.js o
 renderer of the design (section 7.1), so the two can be compared on the test site. It evaluates one option: keep
 the rules in C# and swap only the drawing. It decides nothing; the canvas renderer is the default and is unchanged.
 
+## What was decided (2026-10-10)
+
+Jeffrey compared the two renderers on the test site and decided (design, section 12, D18): "Three.js is better. Use
+perspective or parallax when possible. Make characters not have leaves covering. Woman has long hair covering
+breasts". What follows below is the spike as it was written on 2026-10-09, kept as the record of what was compared.
+What changed with the decision:
+
+- **Three.js draws the garden.** It is no longer chosen: it is the renderer. The "Renderer (trial)" setting, its
+  three labels and the `sessionStorage` key are gone. The canvas renderer is the fallback: where the browser has no
+  WebGL 2 (`data-renderer-fallback="webgl-unavailable"`), where the module or Three.js cannot be loaded
+  (`"load-failed"`), where the WebGL context is lost while playing and does not come back within two seconds
+  (`"webgl-context-lost"`; a context that comes back is taken up again, and Three.js rebuilds what it had), and
+  where the address asks for it (`…/garden?renderer=canvas`, `"asked"`), for tests and for comparing the two.
+- **A perspective camera**, which the spike had avoided (below, "What got harder"). It is a model in Core,
+  `PerspectiveCamera`: fixed direction, 42 degrees down, 40 degrees of view, following the player. What the spike
+  listed as the cost of it was done there: the game culls for the trapezoid of ground the camera sees, as far as
+  the haze; a tap is a ray from the eye to the ground; each figure is judged at the scale of the place it stands
+  on. The renderer has no projection number of its own: the render list carries the eye, the tilt, the field of
+  view and the haze, and a full-system test compares where the renderer's camera and the game's put the same points.
+- **Parallax.** Where the haze closes, a far layer (sky and two ridges of hills, made by code) hangs before the
+  camera and slides less than the farthest ground. It is layered parallax, not a place of the map: at this tilt a
+  true horizon is never in the picture. It stands still under `prefers-reduced-motion`.
+- **Rule M1 without the foliage** (the session's reading of D18, to be confirmed by Jeffrey before final art is
+  made; design, sections 1, 5.3 and 5.6). The figures are never anatomical; the woman's long hair covers her chest;
+  the checks are structural, by coverage and by the rendered image. Under perspective a figure is still flat: one
+  plane that stands on the feet and faces the camera squarely (it leans back by the camera's tilt, so it is
+  parallel to the picture). The camera then maps the plane to the screen by one scale and a shift, which a unit
+  test proves for every part of both rigs: the figure on the screen is the figure the check judged, and it is never
+  seen edge-on. The parts are painted in the order of the list and every pixel of every part of a character is
+  given one depth, so scenery hides all parts of a figure at a pixel or none.
+- **One shared module.** `js/shell.js` holds the input adapters, the frame and the game root for both renderers; the
+  copy the spike had made is gone.
+- **Loading.** The title and the reader ask for no script of the garden. The garden asks for `js/audio.js`,
+  `js/shell.js`, `js/render-three.js` and the two files of Three.js when a player enters it (0.16 MB as brotli
+  together with the fallback's `js/render.js`, which is asked for only when it has to draw). The first load is what
+  the title needs: 2.39 MB of 3.0 MB.
+- **Still open** from the list at the end: a run on a real graphics chip or a real phone, memory, battery, and the
+  offline cache of slice S11, which will have to hold the files the garden loads on demand.
+
 ## What was built
 
 - `src/AdamEve.Client/wwwroot/js/render-three.js`: a second renderer module. It takes the same arguments as
