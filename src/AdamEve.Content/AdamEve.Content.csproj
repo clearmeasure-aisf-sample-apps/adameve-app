@@ -10,6 +10,7 @@
   <ItemGroup>
     <EmbeddedResource Include="../../content/kjv-genesis-1-3.txt" LogicalName="AdamEve.Content.kjv-genesis-1-3.txt" />
     <EmbeddedResource Include="../../content/glossary.json" LogicalName="AdamEve.Content.glossary.json" />
+    <EmbeddedResource Include="../../content/animals.json" LogicalName="AdamEve.Content.animals.json" />
     <EmbeddedResource Include="../../content/maps/garden.tmj" LogicalName="AdamEve.Content.maps.garden.tmj" />
     <EmbeddedResource Include="../../content/rigs/adam.rig.json" LogicalName="AdamEve.Content.rigs.adam.rig.json" />
     <EmbeddedResource Include="../../content/rigs/woman.rig.json" LogicalName="AdamEve.Content.rigs.woman.rig.json" />

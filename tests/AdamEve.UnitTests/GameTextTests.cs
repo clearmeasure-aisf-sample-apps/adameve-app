@@ -46,6 +46,66 @@ public class GameTextTests
     }
 
     [Test]
+    public void ReviewList_EveryKindNameWithItsMeaning_ShouldBeListedForReviewWithItsAnimalAndItsGroup()
+    {
+        var list = ReviewList();
+
+        foreach (var animal in Animals.Parse(EmbeddedContent.Animals()).List)
+        {
+            foreach (var kindName in animal.KindNames)
+            {
+                list.ShouldContain($"| {animal.Id} | {animal.Category} | {kindName.Word} | {kindName.Meaning} |", Case.Sensitive);
+            }
+        }
+    }
+
+    [Test]
+    public void Narration_EveryLine_ShouldReadAtGrade7OrLower()
+    {
+        GameText.Narration.ShouldNotBeEmpty();
+        foreach (var line in GameText.Narration)
+        {
+            Readability.FleschKincaidGrade(line).ShouldBeLessThanOrEqualTo(Readability.HighestGrade, line);
+        }
+
+        Labels().Where(label => label.Contains(' ') && (label.EndsWith('.') || label.EndsWith('?'))).ShouldBeSubsetOf(GameText.Narration, "every sentence the game wrote is held to the grade");
+    }
+
+    [TestCase("cat", 1)]
+    [TestCase("river", 2)]
+    [TestCase("animal", 3)]
+    [TestCase("name", 1)]
+    [TestCase("sapling", 2)]
+    [TestCase("the", 1)]
+    [TestCase("table", 2)]
+    public void Syllables_AWord_ShouldBeCountedByTheRuleOfThumb(string word, int syllables)
+    {
+        Readability.Syllables(word).ShouldBe(syllables);
+    }
+
+    [Test]
+    public void FleschKincaidGrade_AHardSentence_ShouldBeAboveTheGradeOfNarration()
+    {
+        var grade = Readability.FleschKincaidGrade("Considerable deliberation accompanies unnecessarily complicated institutional communication.");
+
+        grade.ShouldBeGreaterThan(Readability.HighestGrade);
+        Readability.FleschKincaidGrade(string.Empty).ShouldBe(0);
+    }
+
+    [Test]
+    public void Labels_TheMansPath_ShouldSayTheManThenAdamAndTheLordGodAsTheDesignWritesThem()
+    {
+        GameText.ManName(AdamEve.Core.Story.ManLabel.TheMan).ShouldBe("The man");
+        GameText.ManName(AdamEve.Core.Story.ManLabel.Adam).ShouldBe("Adam");
+        GameText.SpeakerName(AdamEve.Core.Story.StorySpeaker.LordGod).ShouldBe("The LORD God");
+        foreach (var task in Enum.GetValues<AdamEve.Core.Story.StoryTask>())
+        {
+            GameText.TaskLine(task).ShouldNotBeNullOrWhiteSpace();
+            GameText.Narration.ShouldContain(GameText.TaskLine(task));
+        }
+    }
+
+    [Test]
     public void Labels_GameText_ShouldNeverSayApple()
     {
         var definitions = Glossary.Parse(EmbeddedContent.Glossary()).Entries.Select(entry => entry.Definition);

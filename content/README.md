@@ -6,8 +6,8 @@ game-written text. Jeffrey Palermo reviews game-written text before it ships (de
 
 ## Game-written text for review
 
-This is the whole list as of slice S4. A unit test (`GameTextTests`) fails when a glossary entry or a
-label is not on it. Review status: **not yet reviewed**.
+This is the whole list as of slice S5. A unit test (`GameTextTests`) fails when a glossary entry, a label, a line
+of narration or a kind-name with its meaning is not on it. Review status: **not yet reviewed**.
 
 ### Glossary (`glossary.json`)
 
@@ -65,6 +65,120 @@ Not in the glossary yet, because the design's list gives them no definition: *on
 | | Spring of Eden |
 | | Pison Meadows |
 | Garden, when the saved game cannot be read (the wording of the design, section 7.3) | Your saved game could not be read. Start again? |
+| The man's path, the speaker label of a Scripture card on which the LORD God speaks: Genesis 2:16, 2:17, 2:18 (the wording of the design, section 1) | The LORD God |
+| The man's path, what the game calls the man until Genesis 2:19 is shown; from then on "Adam" (the wording of the design, decision D3) | The man |
+| Narration, beat B9: what the player is to do after Genesis 2:8 and 2:9 (the session's wording) | Walk to the river. |
+| Narration, beat B10: the first task (the session's wording, after the design's "carry water from a river to saplings") | Carry water from the river to the sapling. |
+| Narration, beat B10: the second task (the session's wording, after the design's "clear fallen branches") | Clear the fallen branch. |
+| Narration, beat B13: over the three kind-names of the animal that was brought (the session's wording) | Choose a name for this kind of animal. |
+| Beat B13, the button beside a kind-name that shows its meaning (the design's "?" button) | ? |
+| Beat B13, what a screen reader reads for the "?" button (the session's wording) | Meaning |
+| Garden, the button and the heading of the journal (the design's word, section 3.4) | Journal |
+
+## The man's path before the woman (slice S5)
+
+Beats B8 to B13 show Genesis 2:4 to 2:20, one verse on each Scripture card, in order, each with its reference. Which
+verses a beat shows, on which the LORD God speaks (2:16, 2:17, 2:18) and where the label of the man changes (2:19)
+are references in `src/AdamEve.Core/Story/GardenStory.cs`, never text. The command is the two cards of Genesis 2:16
+and 2:17 and nothing else: no narration, no summary, no choice. The game-written text of these beats is the nine
+labels above (four of them lines of narration, held to a reading grade of 7.0 or lower by a unit test) and the
+kind-names below. Nobody speaks a game-written line: the LORD God speaks only Scripture, and the man says nothing
+the text does not give him.
+
+The picture of the formation (Genesis 2:4 to 2:7) is art made by code (`FormationPicture`): bare earth, mist with
+2:6, and with 2:7 dust in the air, a warm light (the breath of life; never a figure) and the man, who is the rig of
+the garden, whole, judged by the modesty checks. No body is shown being shaped.
+
+### The animals and their kind-names (`animals.json`)
+
+Design, section 3.5 and decision D9: the player names the **kind** of each animal, choosing one of three kind-names,
+each a real English word for that kind, each with a one-line meaning. 24 animals, 72 kind-names; no fish and no
+serpent. The game shows the words and the meanings; it never shows the everyday name in the first column, which is
+the id of the animal and of its picture. The group is the id of one of the three groups Genesis 2:20 names. The
+animals are brought in the order of this table. Review status: **not yet reviewed**. Whose wording: `design` is the
+starting list of the design (section 3.5), word for word; `session` was proposed by the session that built slice S5
+and waits for Jeffrey's review (D8).
+
+| Animal | Group | Kind-name | Meaning | Whose wording |
+|---|---|---|---|---|
+| elephant | beast | pachyderm | thick-skinned beast | design |
+| elephant | beast | proboscid | trunked beast | design |
+| elephant | beast | tusker | tusked beast | design |
+| sheep | cattle | ovine | the sheep kind | session |
+| sheep | cattle | ruminant | a beast that chews the cud | session |
+| sheep | cattle | wool bearer | a beast that grows wool | session |
+| dove | fowl | columbid | the dove and pigeon family | session |
+| dove | fowl | columbine | of doves | session |
+| dove | fowl | culver | old word for a dove | session |
+| lion | beast | feline | the cat kind | design |
+| lion | beast | leonine | of lions | design |
+| lion | beast | great cat | a large wild cat | design |
+| pig | cattle | swine | the pig kind | design |
+| pig | cattle | porcine | of pigs | design |
+| pig | cattle | hog | a pig | design |
+| rabbit | beast | leporid | the hare family | design |
+| rabbit | beast | coney | old word for a rabbit, used in the KJV | design |
+| rabbit | beast | lagomorph | hares and rabbits | design |
+| eagle | fowl | raptor | a bird of prey | design |
+| eagle | fowl | aquiline | of eagles | design |
+| eagle | fowl | bird of prey | a bird that hunts for its food | word: design; meaning: session |
+| horse | cattle | equine | the horse kind | design |
+| horse | cattle | steed | a riding horse | design |
+| horse | cattle | courser | a swift horse | design |
+| deer | beast | cervine | of deer | session |
+| deer | beast | cervid | the deer family | session |
+| deer | beast | hart | old word for a male deer, used in the KJV | session |
+| rooster | fowl | chanticleer | old name for a rooster | session |
+| rooster | fowl | galliform | the group of chickens, pheasants and quail | session |
+| rooster | fowl | poultry | farm birds such as chickens | session |
+| bear | beast | ursine | of bears | design |
+| bear | beast | bruin | old name for a bear | design |
+| bear | beast | ursid | the bear family | design |
+| goat | cattle | caprine | the goat kind | session |
+| goat | cattle | hircine | of goats | session |
+| goat | cattle | caprid | the group of goats and sheep | session |
+| sparrow | fowl | passerine | a perching bird | session |
+| sparrow | fowl | songbird | a bird that sings | session |
+| sparrow | fowl | oscine | the songbird group | session |
+| camel | cattle | camelid | the camel family | design |
+| camel | cattle | dromedary | one-humped camel | design |
+| camel | cattle | humpback | old nickname | design |
+| squirrel | beast | sciurid | the squirrel family | session |
+| squirrel | beast | sciurine | of squirrels | session |
+| squirrel | beast | rodent | a gnawing animal | session |
+| duck | fowl | anatine | of ducks | session |
+| duck | fowl | anatid | the duck, goose and swan family | session |
+| duck | fowl | waterfowl | a bird that lives on the water | session |
+| cow | cattle | bovine | the ox kind | design |
+| cow | cattle | kine | cows, a KJV word | design |
+| cow | cattle | neat | old word for cattle | design |
+| wolf | beast | canine | the dog kind | design |
+| wolf | beast | lupine | of wolves | design |
+| wolf | beast | wolfkind | wolves | design |
+| peacock | fowl | peafowl | the peacock kind | session |
+| peacock | fowl | pavonine | of peacocks | session |
+| peacock | fowl | phasianid | the pheasant family | session |
+| donkey | cattle | equid | the horse family | session |
+| donkey | cattle | burro | a small donkey | session |
+| donkey | cattle | beast of burden | an animal that carries loads | session |
+| hedgehog | beast | urchin | old word for a hedgehog | session |
+| hedgehog | beast | hedgepig | old name for a hedgehog | session |
+| hedgehog | beast | erinaceid | the hedgehog family | session |
+| raven | fowl | corvid | the crow family | session |
+| raven | fowl | corvine | of crows and ravens | session |
+| raven | fowl | corbie | a Scots word for a raven or crow | session |
+| badger | beast | brock | old name for a badger | session |
+| badger | beast | mustelid | the weasel family | session |
+| badger | beast | meline | of badgers | session |
+| heron | fowl | wader | a bird that wades in shallow water | session |
+| heron | fowl | ardeid | the heron family | session |
+| heron | fowl | hern | old word for a heron | session |
+
+What a unit test holds the table to (`AnimalsTests`, and at start-up `Animals.Violations`): exactly three kind-names
+for each animal; no kind-name twice anywhere; a word is lowercase letters and spaces; every kind-name has a meaning;
+no kind-name is "apple" or a pet name of the blocklist; every animal is cattle, fowl or beast, and none is a fish or
+a serpent. The pictures of the animals are drawn by code from a handful of flat shapes each
+(`src/AdamEve.Core/Game/ThingArt.cs`); no image file.
 
 ## The days of creation (slice S4)
 
