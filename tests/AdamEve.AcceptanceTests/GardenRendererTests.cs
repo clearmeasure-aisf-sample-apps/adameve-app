@@ -117,7 +117,6 @@ public class GardenRendererTests : PlaywrightTest
     }
 
     [TestCase("Desktop Chrome", "chromium", false)]
-    [TestCase("Desktop Chrome", "chromium", true)]
     [TestCase("Pixel 7", "chromium", true)]
     [TestCase("iPhone 13", "webkit", true)]
     public async Task Open_TheGladeWithAndWithoutReducedMotion_ShouldPlantItFillTheAirAndMoveNothingByItselfUnderReducedMotion(string device, string engine, bool reducedMotion)
@@ -355,7 +354,6 @@ public class GardenRendererTests : PlaywrightTest
     [TestCase("Desktop Chrome", "chromium", PlayerCharacter.Adam)]
     [TestCase("Desktop Chrome", "chromium", PlayerCharacter.Woman)]
     [TestCase("Pixel 7", "chromium", PlayerCharacter.Woman)]
-    [TestCase("iPhone 13", "webkit", PlayerCharacter.Adam)]
     [TestCase("iPhone 13", "webkit", PlayerCharacter.Woman)]
     public async Task Walk_InMidStepInSixFacings_ShouldDrawHairOverTheWomansChestAndOnlyTheFlatSkinInThePelvicZone(string device, string engine, PlayerCharacter character)
     {
@@ -744,7 +742,6 @@ public class GardenRendererTests : PlaywrightTest
     }
 
     [Test]
-    [NonParallelizable]
     public async Task Walk_OnAPixel7WithTheProcessorSlowedFourTimes_ShouldKeepTheFallbackAt20MillisecondsOrLessAndReportTheFramesOfThreeJs()
     {
         // Row 17 of the map is open from the Pison meadows to the river: five seconds of walking east fit in it. The

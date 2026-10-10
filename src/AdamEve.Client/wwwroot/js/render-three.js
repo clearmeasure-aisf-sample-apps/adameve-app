@@ -60,7 +60,8 @@ const ELLIPSE_SEGMENTS = 64;
 const CORNER_SEGMENTS = 12;
 // What keeps a frame light enough for a phone: one shadow map of this size, device pixels capped at 2 (shell.js),
 // antialiasing only below that, everything that grows drawn as instances, the grass and the flowers in chunks that
-// are left out when the camera does not see them, and no second pass over the picture.
+// are left out when the camera does not see them, shadows cast only by the planted trees and the stones, grass and
+// flowers painted thinly over the lit ground instead of being lit themselves, and no second pass over the picture.
 const SHADOW_MAP = 1024;
 const CHUNK_TILES = 16;
 const TUFTS_ON_A_TILE = 4;
@@ -199,12 +200,12 @@ function gather(THREE) {
         },
         // A blade of grass or a petal: a triangle seen from one side only, the side that looks up and to the south,
         // where the camera always is.
-        blade(p, q, r, hexes, swaying = [0, 0, 0]) {
+        blade(p, q, r, hexes, swaying = [0, 0, 0], seen = [1, 1, 1]) {
             normal.subVectors(b.fromArray(q), a.fromArray(p)).cross(edge.subVectors(c.fromArray(r), a)).normalize();
             const order = normal.y * 0.67 + normal.z * 0.74 >= 0 ? [0, 1, 2] : [0, 2, 1];
             const points = [p, q, r];
             for (const index of order) {
-                this.corner(points[index], hexes[index], 1, swaying[index]);
+                this.corner(points[index], hexes[index], seen[index], swaying[index]);
             }
         },
         // A solid of Three.js, placed by a matrix. `look`: top and bottom (the colours of a face that looks up and
@@ -567,7 +568,6 @@ function buildGround(THREE, g) {
     groundMesh.frustumCulled = false;
     const thicketMesh = new THREE.Mesh(thicket.build(), g.solidMaterial);
     thicketMesh.receiveShadow = true;
-    thicketMesh.castShadow = true;
     thicketMesh.frustumCulled = false;
     const beyondMesh = new THREE.Mesh(beyond.build(), g.solidMaterial);
     beyondMesh.receiveShadow = true;
@@ -631,13 +631,13 @@ function buildProps(THREE, g) {
 // The grass and the flowers: tufts of three blades on every tile a character can walk on (and about the foot of
 // each tree), and blossoms where the game says a drift of flowers lies, in the colour of the drift. They are low:
 // nothing here looks like a thing in the way. Instances, in chunks of 16 by 16 tiles, each drawn only when the
-// camera sees it; they take the shadows and cast none.
+// camera sees it; they cast no shadow.
 function buildCover(THREE, g) {
     const size = g.tileSize;
     const tuft = gather(THREE);
     for (let blade = 0; blade < 3; blade++) {
         const x = (blade - 1) * 1.7, z = blade === 1 ? 0.6 : -0.4, height = 5.5 + 1.5 * blade;
-        tuft.blade([x - 0.8, 0, z], [x + 0.8, 0, z], [x * 2.6 + 0.4, height, z - 1.2], [0x7CB45A, 0x7CB45A, 0xCBE58A], [0, 0, 1.5]);
+        tuft.blade([x - 0.8, 0, z], [x + 0.8, 0, z], [x * 2.6 + 0.4, height, z - 1.2], [0x8FC463, 0x8FC463, 0xD6EC96], [0, 0, 1.5], [0.25, 0.25, 0.85]);
     }
     const blossom = gather(THREE);
     for (let petal = 0; petal < 5; petal++) {
@@ -645,8 +645,11 @@ function buildCover(THREE, g) {
         blossom.blade([0, 0, 0], [Math.cos(to) * 2.3, 0.7, Math.sin(to) * 2.3], [Math.cos(from) * 2.3, 0.7, Math.sin(from) * 2.3], [0xF2C84B, 0xFFFFFF, 0xFFFFFF], [1.2, 1.2, 1.2]);
     }
     blossom.blade([-0.3, -5, 0], [0.3, -5, 0], [0, 0, 0], [0x3D7A3A, 0x3D7A3A, 0x3D7A3A], [0, 0, 1.2]);
-    g.coverMaterial = windy(new THREE.MeshLambertMaterial({ vertexColors: true }), g);
-    const tuftGeometry = tuft.build(0, true), blossomGeometry = blossom.build(0, true);
+    // Grass and flowers take no light of their own and no shadow lookup: they are painted thinly over the ground,
+    // which has both, so a blade in the shade of a tree is darker with the ground under it. That keeps thousands of
+    // blades cheap. They are painted before the figures and write no depth, like everything in the air.
+    g.coverMaterial = windy(new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false }), g);
+    const tuftGeometry = tuft.build(), blossomGeometry = blossom.build();
 
     const chunks = new Map();
     const chunkOf = (x, y) => {
@@ -688,7 +691,7 @@ function buildCover(THREE, g) {
             mesh.setMatrixAt(index, placeOf(place));
             mesh.setColorAt(index, place.colour === undefined ? colour.copy(warm).lerp(deep, place.shade) : colour.setHex(place.colour));
         });
-        mesh.receiveShadow = true;
+        mesh.renderOrder = 2;
         mesh.computeBoundingSphere();
         g.scene.add(mesh);
         g.coverMeshes.push(mesh);
@@ -720,7 +723,10 @@ function sceneryOf(THREE, g, kind) {
         const geometry = modelOf(THREE, kind);
         const mesh = new THREE.InstancedMesh(geometry, g.solidMaterial, TREE_CAPACITY);
         mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-        mesh.castShadow = true;
+        if (kind < SCENERY.forestTree) {
+            // The planted trees cast a shadow; the forest behind the thicket and what is low do not.
+            mesh.castShadow = true;
+        }
         mesh.receiveShadow = true;
         mesh.frustumCulled = false;
         mesh.count = 0;

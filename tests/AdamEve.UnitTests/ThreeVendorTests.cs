@@ -242,7 +242,8 @@ public partial class ThreeVendorTests
         module.ShouldContain("g.sun.shadow.mapSize.set(SHADOW_MAP, SHADOW_MAP);");
         module.ShouldContain("const antialias = (window.devicePixelRatio || 1) < 2;");
         module.ShouldContain("new THREE.InstancedMesh(geometry, g.solidMaterial, TREE_CAPACITY)");
-        Regex.Count(module, "castShadow = true").ShouldBe(4, "the sun, the thicket, the stones and what stands on the tiles cast a shadow: nothing else (not the grass, not the air), and no figure");
+        Regex.Count(module, "castShadow = true").ShouldBe(3, "the sun, the stones and the planted trees cast a shadow: nothing else (not the thicket, not the grass, not the air), and no figure");
+        module.ShouldContain("if (kind < SCENERY.forestTree) {");
         module.ShouldContain("const CHUNK_TILES = 16;");
         module.ShouldContain("haze: 0xE2E8C6,", customMessage: "the full-system test reads this colour where the haze closes");
         module.ShouldNotContain("WebGLRenderTarget");

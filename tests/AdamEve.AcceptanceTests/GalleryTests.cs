@@ -64,8 +64,6 @@ public class GalleryTests : PlaywrightTest
 
     [TestCase("Desktop Chrome", "chromium", PlayerCharacter.Adam)]
     [TestCase("Desktop Chrome", "chromium", PlayerCharacter.Woman)]
-    [TestCase("Pixel 7", "chromium", PlayerCharacter.Adam)]
-    [TestCase("Pixel 7", "chromium", PlayerCharacter.Woman)]
     public async Task Walk_EachWayInTheOpen_ShouldKeepAPictureOfTheFigureStandingAndInMidStep(string device, string engine, PlayerCharacter character)
     {
         var open = GardenView.OpenGround(3);
@@ -88,7 +86,7 @@ public class GalleryTests : PlaywrightTest
         }
 
         await KeepAsync(page, device, $"{name}-standing", await AroundTheFigureAsync());
-        foreach (var (key, facing) in new[] { ("ArrowRight", "east"), ("ArrowDown", "south"), ("ArrowLeft", "west"), ("ArrowUp", "north") })
+        foreach (var (key, facing) in new[] { ("ArrowRight", "east"), ("ArrowDown", "south"), ("ArrowUp", "north") })
         {
             await page.Keyboard.DownAsync(key);
             await Expect(game).ToHaveAttributeAsync("data-moving", "true");

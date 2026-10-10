@@ -194,7 +194,17 @@ internal static class GardenView
     /// <summary>A file kept with the test results for review. Never compared.</summary>
     public static string KeptPath(string folder, string name)
     {
-        var directory = Path.Combine(TestContext.CurrentContext.WorkDirectory, folder);
+        // The gallery and the review sheets are kept by their own names where the build keeps the results of these
+        // tests (TestResults/acceptance/<folder>/<name>): an attachment alone is filed under the number of its test.
+        var root = new DirectoryInfo(TestContext.CurrentContext.WorkDirectory);
+        while (root is not null && !File.Exists(Path.Combine(root.FullName, "AdamEve.slnx")))
+        {
+            root = root.Parent;
+        }
+
+        var directory = root is not null && folder is "gallery" or "m1-sheets"
+            ? Path.Combine(root.FullName, "TestResults", "acceptance", folder)
+            : Path.Combine(TestContext.CurrentContext.WorkDirectory, folder);
         Directory.CreateDirectory(directory);
         return Path.Combine(directory, name.Replace(' ', '-'));
     }

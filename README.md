@@ -43,7 +43,7 @@ taken from anywhere, and the sound setting has nothing to play yet.
   and the hair moves.
 
 God is never drawn as a figure: his presence is a warm light, shown while his voice speaks on a Scripture card.
-Pictures of all of it are kept with every build for review: artifact `test-results`, `acceptance/**/gallery/`.
+Pictures of all of it are kept with every build for review: artifact `test-results`, `acceptance/gallery/`.
 
 **The garden in perspective (decision D18, 2026-10-10).** Three.js (WebGL 2) draws the garden through a perspective
 camera that follows the player, fixed in direction and tilt: nearer things are larger and cross the screen faster,
