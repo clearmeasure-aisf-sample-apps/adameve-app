@@ -99,7 +99,7 @@ function chunkOf(column, row, scale) {
             const width = (x === CHUNK_TILES - 1 ? chunk.width : Math.round((x + 1) * size)) - left;
             const height = (y === CHUNK_TILES - 1 ? chunk.height : Math.round((y + 1) * size)) - top;
             // The colour of the ground changes smoothly from tile to tile, with a little of each tile's own.
-            const shade = 0.8 * drift(tileX / 4, tileY / 4) + 0.2 * scatter(tileX, tileY);
+            const shade = 0.94 * drift(tileX / 7, tileY / 7) + 0.06 * scatter(tileX, tileY);
             context.fillStyle = inside ? between(game.ground[style], game.ground[style + 1], shade) : game.backdrop;
             context.fillRect(left, top, width, height);
             const mark = inside && game.ground[style + 2] >= 0 ? game.ground[style + 3] * scale : 0;
