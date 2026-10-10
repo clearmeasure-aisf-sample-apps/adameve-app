@@ -215,22 +215,29 @@ public partial class ThreeVendorTests
         // What rule M1 rests on in this renderer (the module's header says why): a part of a character is a flat
         // shape with a material that takes no light, placed by the list's transform in the plane of its character,
         // which leans back by the camera's tilt and so is parallel to the picture; every pixel of every part of a
-        // character is given one depth; the parts are painted in the order of the list.
+        // character is given one depth; the parts are painted in the order of the list. Since the second art pass
+        // all the parts of one character are the triangles of one mesh, in that order, each corner with the flat
+        // colour of its part: the same picture, with one draw call for a character instead of one for a part.
         var module = Module();
 
         module.ShouldContain("gl_FragDepth = uDepth;");
-        module.ShouldContain("gl_FragColor = vec4(mix(uColour, uHazeColour, uHaze), 1.0);");
+        module.ShouldContain("gl_FragColor = vec4(mix(vColour, uHazeColour, uHaze), 1.0);");
+        module.ShouldContain("vColour = aColour;");
         module.ShouldContain("side: THREE.DoubleSide, transparent: true, depthTest: true, depthWrite: false, fog: false,");
-        module.ShouldContain("uDepth: figure.depth,");
+        module.ShouldContain("uniforms: { uHazeColour: { value: g.hazeColour }, uHaze: figure.haze, uDepth: figure.depth },");
         module.ShouldContain("figure.depth.value = g.vector.set(feetX, list[FIGURE_DEPTH_HEIGHT], feetZ).project(camera).z * 0.5 + 0.5;");
-        module.ShouldContain("mesh.renderOrder = 10 + index;");
-        module.ShouldContain("list[at + 1], -list[at + 3], 0, e,");
-        module.ShouldContain("-list[at + 2] * cos, list[at + 4] * cos, sin, (feet - f) * cos,");
-        module.ShouldContain("list[at + 2] * sin, -list[at + 4] * sin, cos, feet - (feet - f) * sin,");
+        module.ShouldContain("figure.mesh.renderOrder = 10 + parts;");
+        module.ShouldContain("const a = list[at + 1], b = list[at + 2], c = list[at + 3], d = list[at + 4];");
+        module.ShouldContain("const up = (feet - f) * cos, south = feet - (feet - f) * sin;");
+        module.ShouldContain("places[to] = a * x - c * y + e;");
+        module.ShouldContain("places[to + 1] = (d * y - b * x) * cos + up;");
+        module.ShouldContain("places[to + 2] = (b * x - d * y) * sin + south;");
+        module.ShouldContain("colours[to] = flat.red;");
         module.ShouldContain("const around = 1 / Math.cos(Math.PI / ELLIPSE_SEGMENTS);");
         Regex.Count(module, "new THREE.ShaderMaterial\\(").ShouldBe(1);
         module.ShouldNotContain("SkinnedMesh");
-        module.ShouldNotContain("castShadow = true;\n        g.parts");
+        module.ShouldNotContain("figure.mesh.castShadow");
+        module.ShouldNotContain("figure.mesh.receiveShadow");
     }
 
     [Test]
