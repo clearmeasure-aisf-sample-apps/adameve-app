@@ -23,17 +23,17 @@
 </label>
 @if (RendererTrialShown)
 {
-@* Temporary, for the trial of the Three.js renderer (docs/spike-threejs.md): kept for the tab only, never saved. *@
-<fieldset class="game-setting" data-testid="renderer-trial">
-    <legend>@GameText.RendererTrial</legend>
-    @foreach (var (kind, label) in Renderers)
-    {
-        <label class="game-choice">
-            <input type="radio" name="renderer" data-testid="renderer-@RendererTrial.NameOf(kind)" checked="@(Session.Renderer == kind)" @onchange="() => Session.SetRenderer(kind)" />
-            <span>@label</span>
-        </label>
-    }
-</fieldset>
+    @* Temporary, for the trial of the Three.js renderer (docs/spike-threejs.md): kept for the tab only, never saved. *@
+    <fieldset class="game-setting" data-testid="renderer-trial">
+        <legend>@GameText.RendererTrial</legend>
+        @foreach (var (kind, label) in Renderers)
+        {
+            <label class="game-choice">
+                <input type="radio" name="renderer" data-testid="renderer-@RendererTrial.NameOf(kind)" checked="@(Session.Renderer == kind)" @onchange="() => Session.SetRenderer(kind)" />
+                <span>@label</span>
+            </label>
+        }
+    </fieldset>
 }
 
 @code {

@@ -108,7 +108,10 @@ the canvas test, run for both renderers in turn.
 | Where | WebGL drawn by | Canvas 2D | Three.js |
 |---|---|---|---|
 | The desk of this spike (Arch Linux, headless Chromium) | Mesa llvmpipe: software | 301 frames, median 16.7 ms, 95th percentile 16.8 ms | 145 frames, median 33.3 ms, 95th percentile 50.0 ms |
-| The integration build (GitHub runner, headless Chromium) | CI_WEBGL | CI_CANVAS | CI_THREE |
+| The integration build (GitHub runner, headless Chromium) | SwiftShader: software | 301 frames, median 16.7 ms, 95th percentile 16.8 ms | 29 frames, median 166.7 ms, 95th percentile 183.4 ms |
+
+Each build writes its own numbers to `frame-times.txt` in the artifact `test-results`, beside the screenshots
+(`acceptance/**/three-*.png`).
 
 Read these with care. A headless browser on a build machine has no graphics chip: it draws WebGL on the processor,
 and the test then slows that processor four times. The Three.js numbers above therefore measure a software
