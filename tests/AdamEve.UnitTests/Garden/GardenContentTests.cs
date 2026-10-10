@@ -167,7 +167,8 @@ public class GardenContentTests
     }
 
     [TestCase("\"id\": \"eyeL\"", "\"id\": \"navel\"", "navel", Description = "a part that is not on the list")]
-    [TestCase("\"id\": \"torso\", \"bone\": \"torso\", \"shape\": \"rectangle\", \"w\": 15, \"h\": 15, \"colour\": \"#E2B994\"", "\"id\": \"torso\", \"bone\": \"torso\", \"shape\": \"rectangle\", \"w\": 15, \"h\": 15, \"colour\": \"#D9A07A\"", "torso", Description = "a third tone of skin")]
+    [TestCase("\"id\": \"torso\", \"bone\": \"torso\", \"shape\": \"rounded\", \"w\": 15, \"h\": 16, \"round\": 4.5, \"colour\": \"#E2B994\"", "\"id\": \"torso\", \"bone\": \"torso\", \"shape\": \"rounded\", \"w\": 15, \"h\": 16, \"round\": 4.5, \"colour\": \"#D9A07A\"", "torso", Description = "a third tone of skin")]
+    [TestCase("\"id\": \"torso\", \"bone\": \"torso\", \"shape\": \"rounded\", \"w\": 15, \"h\": 16, \"round\": 4.5,", "\"id\": \"torso\", \"bone\": \"torso\", \"shape\": \"rounded\", \"w\": 15, \"h\": 16, \"round\": 9,", "torso", Description = "corners rounded beyond half the shorter side")]
     [TestCase("\"view\": \"front\", \"plain\": true", "\"view\": \"front\", \"by\": [\"hair\"]", "pelvis", Description = "the pelvic zone not declared plain")]
     public void Load_ARigThatHoldsWhatTheAmendedModestyRuleDoesNotAllow_ShouldBeRefused(string from, string to, string named)
     {

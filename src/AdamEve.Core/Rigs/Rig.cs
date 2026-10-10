@@ -31,7 +31,7 @@ public enum RigView
     Back,
 }
 
-/// <summary>The outline of a part. Placeholder parts are these two shapes in one flat colour.</summary>
+/// <summary>The outline of a part: one of these plain shapes, in one flat colour.</summary>
 public enum PartShape
 {
     /// <summary>An ellipse that fills the part's width and height.</summary>
@@ -39,6 +39,13 @@ public enum PartShape
 
     /// <summary>A rectangle of the part's width and height.</summary>
     Rectangle,
+
+    /// <summary>
+    /// A rectangle of the part's width and height whose four corners are rounded by one radius: with a radius of
+    /// half its shorter side, a limb with round ends. Added on 2026-10-10 for figures with more grace: it is a
+    /// plain convex outline like the other two and models nothing.
+    /// </summary>
+    Rounded,
 }
 
 /// <summary>What a part is, for the modesty rule M1.</summary>
@@ -88,6 +95,7 @@ public sealed record PartPlacement(double X, double Y, double Depth, double Rota
 /// <param name="Side">Where it sits seen from the side; null when it is not seen.</param>
 /// <param name="Back">Where it sits seen from behind; null when it is not seen.</param>
 /// <param name="TurnX">How far it shifts toward the facing in the four diagonal facings.</param>
+/// <param name="Round">The radius of the corners of a <see cref="PartShape.Rounded"/> part; 0 for the other outlines.</param>
 public sealed record RigPart(
     string Id,
     string Bone,
@@ -100,7 +108,8 @@ public sealed record RigPart(
     PartPlacement? Front,
     PartPlacement? Side,
     PartPlacement? Back,
-    double TurnX)
+    double TurnX,
+    double Round = 0)
 {
     /// <summary>Where the part sits in a view; null when it is not seen there.</summary>
     /// <param name="view">The view.</param>

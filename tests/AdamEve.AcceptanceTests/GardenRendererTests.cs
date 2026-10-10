@@ -100,9 +100,11 @@ public class GardenRendererTests : PlaywrightTest
         picture.Pixels.Distinct().Count().ShouldBeGreaterThan(200, "the picture is not blank: light and shadow make many colours");
         picture.Pixels.Count(pixel => GardenView.IsSkin(pixel, 3)).ShouldBeGreaterThan(50, "the two figures are drawn in the colours of their rigs, without light");
         var sky = await GardenView.PixelsAsync(page, width * 0.1, 0, width * 0.8, 3);
-        sky.Pixels.ShouldAllBe(pixel => (pixel & 255) > 190 && (pixel & 255) >= (pixel >> 16), "the top of the picture is the sky of the far layer");
+        // A tall tree or the light about the tree of life may reach the top of the picture: most of it is sky.
+        sky.Pixels.Count(pixel => (pixel & 255) > 190 && (pixel & 255) >= (pixel >> 16)).ShouldBeGreaterThan(sky.Pixels.Length * 3 / 5, "the top of the picture is the sky of the far layer");
         var haze = await GardenView.PixelsAsync(page, width * 0.1, camera.HazeLine + 2, width * 0.8, 2);
-        haze.Pixels.Count(pixel => GardenView.Near(pixel, 0xDCEBD2, 24)).ShouldBeGreaterThan(haze.Pixels.Length * 2 / 3, "where the haze closes, the ground has its colour");
+        // Trees, the forest behind the glade and the light about the tree of life stand before that line here and there.
+        haze.Pixels.Count(pixel => GardenView.Near(pixel, 0xE2E8C6, 24)).ShouldBeGreaterThan(haze.Pixels.Length * 2 / 5, "where the haze closes, the ground has its colour");
         var near = await GardenView.PixelsAsync(page, width * 0.35, height - 6, width * 0.3, 4);
         near.Pixels.Count(pixel => ((pixel >> 8) & 255) > (pixel >> 16) && ((pixel >> 8) & 255) > (pixel & 255)).ShouldBeGreaterThan(near.Pixels.Length / 2, "the near ground is green, clear of haze");
         var probe = await GardenView.ProbeAsync(page);
@@ -111,6 +113,52 @@ public class GardenRendererTests : PlaywrightTest
         await GardenView.KeepScreenshotAsync(page, Shots, $"garden-{device}-glade");
         await GardenView.SetAsideRefusedStyleSheetsAsync(guarded, 1);
         TestContext.Out.WriteLine($"WebGL of the test browser ({engine}): {(engine == "chromium" ? GuardedPage.WebGlOfChromium : "as WebKit has it")}.");
+        await GardenView.ExpectACleanRunAsync(guarded, game);
+    }
+
+    [TestCase("Desktop Chrome", "chromium", false)]
+    [TestCase("Pixel 7", "chromium", true)]
+    [TestCase("iPhone 13", "webkit", true)]
+    public async Task Open_TheGladeWithAndWithoutReducedMotion_ShouldPlantItFillTheAirAndMoveNothingByItselfUnderReducedMotion(string device, string engine, bool reducedMotion)
+    {
+        // The two trees in the midst of the garden are in view from here, with the planted trees, the edge of the
+        // thicket and the flowers. Everything that moves by itself has one clock: the wind, the water, the mist, the
+        // pollen, the fireflies, the butterflies, the clouds, the birds, the flicker of one tree, the breath of a
+        // standing figure. Under reduced motion it stands, and two frames are the same picture.
+        var place = new TilePos(30, 27);
+        var map = GardenView.Garden().Map;
+        map.IsWalkable(place).ShouldBeTrue();
+        await using var guarded = await OpenPageAsync(device, engine, reducedMotion: reducedMotion);
+        var page = guarded.Page;
+        var game = await GardenView.OpenAsync(page, GardenView.SaveAt(place.X, place.Y));
+        await GardenView.ExpectThreeDrawsAsync(game);
+        await page.WaitForTimeoutAsync(400);
+
+        var first = await GardenView.ProbeAsync(page);
+        var before = await GardenView.PictureAsync(page);
+        await page.WaitForTimeoutAsync(500);
+        var second = await GardenView.ProbeAsync(page);
+        var after = await GardenView.PictureAsync(page);
+
+        await Expect(game).ToHaveAttributeAsync("data-motion", reducedMotion ? "off" : "on");
+        first.Trees.ShouldBeGreaterThanOrEqualTo(3, "the two trees in the midst of the garden and the fig tree, at least");
+        first.Plants.ShouldBeGreaterThan(0, "shrubs, rocks or reeds are in view");
+        first.Glows.ShouldBeGreaterThan(20, "the light about the two trees, the blossoms of the tree of life, pollen");
+        first.Shafts.ShouldBeGreaterThan(0, "light falls beside the tree of life");
+        if (reducedMotion)
+        {
+            first.Seconds.ShouldBe(0);
+            second.Seconds.ShouldBe(0);
+            after.ShouldBe(before, "nothing moves by itself: two frames are one picture, pixel for pixel");
+        }
+        else
+        {
+            second.Seconds.ShouldBeGreaterThan(first.Seconds);
+            after.ShouldNotBe(before);
+        }
+
+        await GardenView.KeepScreenshotAsync(page, Shots, $"garden-{device}-the-two-trees{(reducedMotion ? "-reduced-motion" : string.Empty)}");
+        await GardenView.SetAsideRefusedStyleSheetsAsync(guarded, 1);
         await GardenView.ExpectACleanRunAsync(guarded, game);
     }
 
@@ -245,8 +293,10 @@ public class GardenRendererTests : PlaywrightTest
             var drawn = Enumerable.Range(0, figure.Pixels.Length).Where(index => GardenView.IsSkin(figure.Pixels[index], 3) || GardenView.Near(figure.Pixels[index], GardenView.Hair, 3)).ToList();
             drawn.Count.ShouldBeGreaterThan(200, why);
             var edge = margin * scale * ratio;
-            ((double)drawn.Min(index => index % figure.Width)).ShouldBe(edge, 2.5, $"{why}: the left edge of the figure");
-            ((double)drawn.Max(index => index % figure.Width)).ShouldBe(figure.Width - edge, 2.5, $"{why}: the right edge of the figure");
+            // The hair sways in the stance, by half a logical pixel at most to either side.
+            var sway = 0.5 * scale * ratio;
+            ((double)drawn.Min(index => index % figure.Width)).ShouldBe(edge, 2.5 + sway, $"{why}: the left edge of the figure");
+            ((double)drawn.Max(index => index % figure.Width)).ShouldBe(figure.Width - edge, 2.5 + sway, $"{why}: the right edge of the figure");
             ((double)drawn.Min(index => index / figure.Width)).ShouldBe(edge - (0.3 * scale * ratio), 2.5 + (0.3 * scale * ratio), $"{why}: the top edge of the figure");
             ((double)drawn.Max(index => index / figure.Width)).ShouldBe(figure.Height - edge, 2.5, $"{why}: the bottom edge of the figure");
 
@@ -298,6 +348,92 @@ public class GardenRendererTests : PlaywrightTest
         TestContext.AddTestAttachment(path, "The eight facings as the renderer drew them, from left to right: S, SE, E, NE, N, NW, W, SW.");
         await GardenView.SetAsideRefusedStyleSheetsAsync(guarded, 1);
         player.ShouldBe(open);
+        await GardenView.ExpectACleanRunAsync(guarded, game);
+    }
+
+    [TestCase("Desktop Chrome", "chromium", PlayerCharacter.Adam)]
+    [TestCase("Desktop Chrome", "chromium", PlayerCharacter.Woman)]
+    [TestCase("Pixel 7", "chromium", PlayerCharacter.Woman)]
+    [TestCase("iPhone 13", "webkit", PlayerCharacter.Woman)]
+    public async Task Walk_InMidStepInSixFacings_ShouldDrawHairOverTheWomansChestAndOnlyTheFlatSkinInThePelvicZone(string device, string engine, PlayerCharacter character)
+    {
+        // The third check of the amended rule M1 (design, section 5.6) while the figure walks: the legs and arms
+        // swing, the body sinks and rises, the hair moves. The pixels are read from frames in mid-step, where the
+        // renderer itself says the figure stands, in the part of each zone that belongs to it in every frame of
+        // the walk.
+        var open = GardenView.OpenGround(3);
+        var garden = GardenView.Garden();
+        var rig = character == PlayerCharacter.Adam ? garden.Adam : garden.Woman;
+        await using var guarded = await OpenPageAsync(device, engine);
+        var page = guarded.Page;
+        var game = await GardenView.OpenAsync(page, GardenView.SaveAt(open.X, open.Y, character));
+        await GardenView.ExpectThreeDrawsAsync(game);
+        // Out and back again, so the walk stays on the open ground: both sides, the front, the back and two diagonals.
+        (string[] Keys, Facing Facing)[] ways =
+        [
+            (["ArrowRight"], Facing.E), (["ArrowLeft"], Facing.W), (["ArrowDown"], Facing.S), (["ArrowUp"], Facing.N),
+            (["ArrowDown", "ArrowRight"], Facing.SE), (["ArrowUp", "ArrowLeft"], Facing.NW),
+        ];
+        var read = 0;
+
+        foreach (var (keys, facing) in ways)
+        {
+            foreach (var key in keys)
+            {
+                await page.Keyboard.DownAsync(key);
+            }
+
+            await Expect(game).ToHaveAttributeAsync("data-moving", "true");
+            await Expect(game).ToHaveAttributeAsync("data-facing", facing.ToString());
+            var why = $"{character} walking {facing} on {device}";
+            for (var sample = 0; sample < 2; sample++)
+            {
+                var (figure, scale, moving, faces) = await GardenView.FigureInThisFrameAsync(page, character == PlayerCharacter.Adam ? 0 : 1);
+                if (!moving || faces != facing.ToString())
+                {
+                    continue;
+                }
+
+                // A rectangle of the figure's own flat space (from the feet, y downward) as pixels of the box read.
+                IEnumerable<int> PixelsOf((double Left, double Top, double Right, double Bottom) part, double inset)
+                {
+                    var (left, right) = ((int)Math.Ceiling((part.Left + inset + 20) * scale), (int)Math.Floor((part.Right - inset + 20) * scale));
+                    var (top, bottom) = ((int)Math.Ceiling((part.Top + inset + 56) * scale), (int)Math.Floor((part.Bottom - inset + 56) * scale));
+                    return Enumerable.Range(top, Math.Max(0, bottom - top)).SelectMany(y => Enumerable.Range(left, Math.Max(0, right - left)).Select(x => figure.At(x, y)));
+                }
+
+                var pelvic = PixelsOf(GardenView.ZoneBoundsInEveryFrameOfTheWalk(rig, RigStructure.Pelvis, facing), 2).ToList();
+                pelvic.Count.ShouldBeGreaterThan(60, why);
+                pelvic.Count(pixel => !GardenView.Near(pixel, GardenView.Skin, 3)).ShouldBe(0, $"{why}: the pelvic zone shows something other than the flat skin colour in mid-step");
+                pelvic.Distinct().Count().ShouldBeLessThanOrEqualTo(2, $"{why}: the pelvic zone is one flat colour in mid-step");
+                if (character == PlayerCharacter.Woman && !facing.IsTurnedAway())
+                {
+                    var chest = PixelsOf(GardenView.ZoneBoundsInEveryFrameOfTheWalk(rig, RigStructure.Chest, facing), 1).ToList();
+                    chest.Count.ShouldBeGreaterThan(60, why);
+                    chest.Count(pixel => GardenView.IsSkin(pixel, 24)).ShouldBe(0, $"{why}: the chest zone shows skin in mid-step");
+                    chest.Count(pixel => !GardenView.Near(pixel, GardenView.Hair, 3)).ShouldBe(0, $"{why}: the chest zone shows something other than her hair in mid-step");
+                }
+
+                figure.Pixels.Count(pixel => GardenView.IsSkin(pixel, 3)).ShouldBeGreaterThan(100, $"{why}: the figure is in the box read");
+                read++;
+                await page.WaitForTimeoutAsync(70);
+            }
+
+            await Expect(game).ToHaveAttributeAsync("data-concealment", "ok");
+            foreach (var key in keys)
+            {
+                await page.Keyboard.UpAsync(key);
+            }
+
+            await Expect(game).ToHaveAttributeAsync("data-moving", "false", new() { Timeout = 15_000 });
+            if (facing == Facing.S)
+            {
+                await GardenView.KeepScreenshotAsync(page, Shots, $"garden-{device}-{character}-after-walking");
+            }
+        }
+
+        read.ShouldBeGreaterThanOrEqualTo(ways.Length, "frames in mid-step were read in the facings walked");
+        await GardenView.SetAsideRefusedStyleSheetsAsync(guarded, 1);
         await GardenView.ExpectACleanRunAsync(guarded, game);
     }
 

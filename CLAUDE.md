@@ -71,6 +71,10 @@ and camera angle:
 
 The checks are in `AdamEve.Core.Rigs`. `RigStructure` lists what a rig may hold (shapes, kinds, names, colours):
 a rig with anything else does not load, and a new kind or shape fails a test until a person adds it to the lists.
+(Added on 2026-10-10 for the art pass, awaiting Jeffrey's review with the rest of the session's reading: the plain
+outline `Rounded`, a rectangle with rounded corners, and the bone `hair` of the head, on which hair that moves
+hangs. What covers the woman's chest stays bound to the head itself.) Nothing in the air of the garden (glows,
+wings) is ever painted over a figure.
 `ConcealmentChecker` judges a frame: the pelvic zone is plain (the hips cover it and nothing else reaches into it),
 and hair covers every pixel of the woman's chest zone that is not turned away, with alpha 0.95 or more. The unit
 tests run them over every frame of every rig (`ConcealmentTests`, `RigStructureTests`); the running game runs them

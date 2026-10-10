@@ -2,12 +2,16 @@
 // the address of the garden asks for it (?renderer=canvas). The garden is drawn by render-three.js otherwise
 // (design, section 7.1 and decision D18).
 //
+// It is flat and plain: no perspective, no parallax, no light and nothing that moves but the figures. The ground
+// shades smoothly from place to place (no checker), the flowers lie in their drifts, and what stands on a tile is
+// the few flat shapes the game lists for its kind.
+//
 // It is flat: no perspective and no parallax. It asks the game for the flat projection, so the camera, the culling
 // and the tile under a tap are those of a flat picture. Each frame it draws the render list the game wrote, in the
 // order of the list. It decides nothing: the camera, the order of drawing and the M1 verdict are the game's. What
 // it shares with the other renderer (input, the frame, the game root) is shell.js. Nothing here asks the network.
 
-import { HEADER, ENTRY, FLAT, createShell, openPage, readAtlas } from "./shell.js";
+import { HEADER, ENTRY, FLAT, createShell, drift, openPage, readAtlas, scatter } from "./shell.js";
 
 const CHUNK_TILES = 16;
 const KEPT_CHUNKS = 6;
@@ -16,6 +20,12 @@ let game = null;
 
 function css(colour) {
     return "#" + (colour | 0).toString(16).padStart(6, "0");
+}
+
+// A colour between two, as CSS.
+function between(from, to, share) {
+    const channel = shift => Math.round(((from >> shift) & 255) + (((to >> shift) & 255) - ((from >> shift) & 255)) * share);
+    return css((channel(16) << 16) | (channel(8) << 8) | channel(0));
 }
 
 // The atlas: every image is placeholder art painted here once, from the flat shapes the game lists.
@@ -38,6 +48,17 @@ function buildAtlas(numbers, pixelsPerUnit) {
             context.fillStyle = css(shape.colour);
             if (shape.kind === 1) {
                 context.fillRect(shape.x - shape.width / 2, shape.y - shape.height / 2, shape.width, shape.height);
+            } else if (shape.kind === 2) {
+                // A rectangle with rounded corners: four sides and four quarter circles.
+                const x0 = shape.x - shape.width / 2, y0 = shape.y - shape.height / 2, x1 = x0 + shape.width, y1 = y0 + shape.height, r = shape.round;
+                context.beginPath();
+                context.moveTo(x0 + r, y0);
+                context.arcTo(x1, y0, x1, y1, r);
+                context.arcTo(x1, y1, x0, y1, r);
+                context.arcTo(x0, y1, x0, y0, r);
+                context.arcTo(x0, y0, x1, y0, r);
+                context.closePath();
+                context.fill();
             } else {
                 context.beginPath();
                 context.ellipse(shape.x, shape.y, shape.width / 2, shape.height / 2, 0, 0, Math.PI * 2);
@@ -77,12 +98,30 @@ function chunkOf(column, row, scale) {
             // The last column and row reach the edge of the chunk, which is a whole number of pixels.
             const width = (x === CHUNK_TILES - 1 ? chunk.width : Math.round((x + 1) * size)) - left;
             const height = (y === CHUNK_TILES - 1 ? chunk.height : Math.round((y + 1) * size)) - top;
-            context.fillStyle = inside ? css(game.ground[style + ((tileX + tileY) & 1)]) : game.backdrop;
+            // The colour of the ground changes smoothly from tile to tile, with a little of each tile's own.
+            const shade = 0.94 * drift(tileX / 7, tileY / 7) + 0.06 * scatter(tileX, tileY);
+            context.fillStyle = inside ? between(game.ground[style], game.ground[style + 1], shade) : game.backdrop;
             context.fillRect(left, top, width, height);
             const mark = inside && game.ground[style + 2] >= 0 ? game.ground[style + 3] * scale : 0;
             if (mark > 0) {
+                // The stones of a crossing and the resting place: a round mark.
                 context.fillStyle = css(game.ground[style + 2]);
-                context.fillRect(Math.round(left + (width - mark) / 2), Math.round(top + (height - mark) / 2), Math.round(mark), Math.round(mark));
+                context.beginPath();
+                context.ellipse(left + width / 2, top + height / 2, mark / 2, mark * 0.42, 0, 0, Math.PI * 2);
+                context.fill();
+            }
+            const flowers = inside ? game.cover[tileY * game.mapWidth + tileX] : 0;
+            if (flowers > 0) {
+                // The flowers of the tile, in the colour of their drift: thick on a flower tile, a few beside it.
+                context.fillStyle = css(game.ground[game.driftColours + (flowers & 7) - 1]);
+                const count = flowers & 8 ? 7 : 3;
+                for (let flower = 0; flower < count; flower++) {
+                    const x = left + (0.12 + 0.76 * scatter(tileX * 8 + flower, tileY)) * width;
+                    const y = top + (0.12 + 0.76 * scatter(tileX, tileY * 8 + flower)) * height;
+                    context.beginPath();
+                    context.arc(x, y, Math.max(1, 2.2 * scale), 0, Math.PI * 2);
+                    context.fill();
+                }
             }
         }
     }
@@ -154,14 +193,16 @@ function tick(now) {
     game.shell.publish(list);
 }
 
-export async function attach(listView, inputView, tiles, ground, atlas, verdicts, mapWidth, mapHeight, tileSize, backdrop) {
+export async function attach(listView, inputView, tiles, ground, atlas, kinds, cover, verdicts, mapWidth, mapHeight, tileSize, backdrop) {
     detach();
     const page = await openPage();
     game = {
         canvas: page.canvas,
         context: page.canvas.getContext("2d", { alpha: false }),
         shell: createShell({ ...page, listView, inputView, verdicts, projection: FLAT }),
-        tiles, ground, mapWidth, mapHeight, tileSize,
+        tiles, ground, cover, mapWidth, mapHeight, tileSize,
+        // After the four numbers of each of the ten tile kinds, the ground lists the colours of the drifts of flowers.
+        driftColours: 40,
         backdrop: css(backdrop),
         atlas: buildAtlas(atlas, 3),
         chunks: new Map(),

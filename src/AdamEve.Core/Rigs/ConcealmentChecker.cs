@@ -78,7 +78,7 @@ public sealed class ConcealmentChecker
                     : record.By.Contains(part.Role);
                 if (covering && placed.Depth > depth)
                 {
-                    AddCover(ref count, placed.Transform, part.Shape, part.Width, part.Height);
+                    AddCover(ref count, placed.Transform, part);
                 }
             }
 
@@ -109,7 +109,8 @@ public sealed class ConcealmentChecker
             polygon = new double[zone.Points.Count];
         }
 
-        // The zone in the space of the part, where the part is a rectangle about the origin or the unit circle.
+        // The zone in the space of the part, where the part is a rectangle about the origin or the unit circle. A
+        // rounded rectangle is taken as the whole rectangle it is cut from: it reaches no farther than that one.
         var toPart = placed.Transform.Invert().Then(pose.ZoneTransform(zoneIndex));
         var unitX = part.Shape == PartShape.Ellipse ? part.Width / 2 : 1;
         var unitY = part.Shape == PartShape.Ellipse ? part.Height / 2 : 1;
@@ -160,7 +161,7 @@ public sealed class ConcealmentChecker
         }
 
         var count = 0;
-        AddCover(ref count, on.Transform, body.Shape, body.Width, body.Height);
+        AddCover(ref count, on.Transform, body);
         return Covered(zone, pose.ZoneTransform(zoneIndex), count, scale, insetPixels);
     }
 
@@ -243,14 +244,14 @@ public sealed class ConcealmentChecker
         return inside;
     }
 
-    private void AddCover(ref int count, in Affine transform, PartShape shape, double width, double height)
+    private void AddCover(ref int count, in Affine transform, RigPart part)
     {
         if (count == covers.Length)
         {
             Array.Resize(ref covers, count * 2);
         }
 
-        covers[count++] = new Cover(transform.Invert(), shape, width / 2, height / 2);
+        covers[count++] = new Cover(transform.Invert(), part.Shape, part.Width / 2, part.Height / 2, part.Round);
     }
 
     private bool Covered(ConcealmentZone zone, in Affine transform, int coverCount, double scale, int insetPixels)
@@ -437,7 +438,7 @@ public sealed class ConcealmentChecker
         return 1 - uncovered >= RequiredAlpha;
     }
 
-    private readonly record struct Cover(Affine Inverse, PartShape Shape, double HalfWidth, double HalfHeight)
+    private readonly record struct Cover(Affine Inverse, PartShape Shape, double HalfWidth, double HalfHeight, double Round)
     {
         public bool Contains(double x, double y)
         {
@@ -446,6 +447,15 @@ public sealed class ConcealmentChecker
             if (Shape == PartShape.Rectangle)
             {
                 return Math.Abs(localX) <= HalfWidth && Math.Abs(localY) <= HalfHeight;
+            }
+
+            if (Shape == PartShape.Rounded)
+            {
+                // Inside the rectangle, and not in the part of a corner the rounding cuts away.
+                var beyondX = Math.Abs(localX) - (HalfWidth - Round);
+                var beyondY = Math.Abs(localY) - (HalfHeight - Round);
+                return Math.Abs(localX) <= HalfWidth && Math.Abs(localY) <= HalfHeight
+                    && (beyondX <= 0 || beyondY <= 0 || (beyondX * beyondX) + (beyondY * beyondY) <= Round * Round);
             }
 
             var unitX = localX / HalfWidth;

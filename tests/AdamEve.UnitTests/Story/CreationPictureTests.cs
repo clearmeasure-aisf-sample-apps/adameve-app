@@ -96,17 +96,31 @@ public class CreationPictureTests
     }
 
     [Test]
-    public void ShapesOf_EveryLayerButTheFigures_ShouldBeFlatShapesInsideThePicture()
+    public void ShapesOf_EveryLayerButTheFigures_ShouldBeShapesMadeOfNumbersThatLieInThePicture()
     {
         foreach (var layer in Enum.GetValues<SceneLayer>().Where(layer => layer != SceneLayer.Figures))
         {
             var shapes = CreationPicture.ShapesOf(layer);
 
             shapes.ShouldNotBeEmpty(layer.ToString());
-            shapes.ShouldAllBe(shape => shape.X >= 0 && shape.X <= CreationPicture.Width && shape.Y >= 0 && shape.Y <= CreationPicture.Height && shape.Width > 0 && shape.Height > 0);
+            foreach (var shape in shapes)
+            {
+                // The middle of every shape lies in the picture, and its outline is path data: letters of the path
+                // commands and numbers, nothing else (no address, no image).
+                shape.Centre.X.ShouldBeInRange(0, CreationPicture.Width, layer.ToString());
+                shape.Centre.Y.ShouldBeInRange(0, CreationPicture.Height + 10, layer.ToString());
+                (shape.Right - shape.Left).ShouldBeGreaterThan(0);
+                (shape.Bottom - shape.Top).ShouldBeGreaterThan(0);
+                shape.Path.ShouldMatch("^M[-0-9. MLCaZ]+Z$");
+                shape.Opacity.ShouldBeInRange(0.05, 1);
+                shape.Paint.Stops.ShouldNotBeEmpty();
+                shape.Paint.Stops.ShouldAllBe(stop => stop.At >= 0 && stop.At <= 1 && stop.Opacity >= 0 && stop.Opacity <= 1 && stop.Colour >= 0 && stop.Colour <= 0xFFFFFF);
+                (shape.Paint.Kind == PaintKind.Flat).ShouldBe(shape.Paint.Stops.Count == 1);
+            }
         }
 
         CreationPicture.ShapesOf(SceneLayer.Figures).ShouldBeEmpty();
+        CreationPicture.ShapesOf(SceneLayer.Trees).Select(shape => shape.Path).ShouldBe(CreationPicture.ShapesOf(SceneLayer.Trees).Select(shape => shape.Path), "the picture is the same every time");
     }
 
     [Test]
@@ -114,9 +128,47 @@ public class CreationPictureTests
     {
         var presence = CreationPicture.ShapesOf(SceneLayer.Presence);
 
-        presence.ShouldAllBe(shape => shape.Shape == PartShape.Ellipse && shape.X == presence[0].X && shape.Y == presence[0].Y);
-        presence.ShouldAllBe(shape => shape.Y + (shape.Height / 2) < 100);
+        // Glows about one centre, each fading to nothing at its rim: light, with no outline of anything.
+        var centre = presence[0].Centre;
+        presence.ShouldAllBe(shape => shape.Paint.Kind == PaintKind.Radial && shape.Centre.X == centre.X && shape.Centre.Y == centre.Y && shape.Paint.Stops[shape.Paint.Stops.Count - 1].Opacity == 0);
+        presence.ShouldAllBe(shape => shape.Bottom < 100);
         Enum.GetNames<SceneLayer>().ShouldNotContain(name => name.Contains("God", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Test]
+    public void ShapesOf_TheDaysOfCreation_ShouldShowWhatTheirVersesTellWhereItBelongs()
+    {
+        const double horizon = 118;
+        static IEnumerable<PictureShape> Of(SceneLayer layer) => CreationPicture.ShapesOf(layer);
+
+        // The light breaks from the darkness: the darkness fills the picture, the light is brightest in its middle.
+        Of(SceneLayer.Darkness).Single().ShouldSatisfyAllConditions(shape => shape.Left.ShouldBe(0), shape => shape.Right.ShouldBe(CreationPicture.Width));
+        Of(SceneLayer.Light).First().Paint.Stops[^1].Opacity.ShouldBe(0, "the light fades into the darkness about it");
+        // The firmament divides the waters from the waters: waters stay above it and under it.
+        Of(SceneLayer.Firmament).First().ShouldSatisfyAllConditions(shape => shape.Top.ShouldBeGreaterThan(20), shape => shape.Bottom.ShouldBeLessThan(horizon + 5));
+        // The lights are set in the firmament; the creatures of the waters are in the seas, the fowl above the earth.
+        foreach (var layer in new[] { SceneLayer.Sun, SceneLayer.Moon, SceneLayer.Stars, SceneLayer.Birds })
+        {
+            Of(layer).ShouldAllBe(shape => shape.Centre.Y < horizon, layer.ToString());
+        }
+
+        foreach (var layer in new[] { SceneLayer.Whales, SceneLayer.Fish })
+        {
+            Of(layer).ShouldAllBe(shape => shape.Centre.Y > horizon && shape.Centre.X > 200, layer.ToString());
+        }
+
+        // The beasts stand on the earth, and the trees and the grass grow on it: the left of the picture.
+        foreach (var layer in new[] { SceneLayer.Animals, SceneLayer.Trees })
+        {
+            Of(layer).ShouldAllBe(shape => shape.Centre.X < 210 && shape.Centre.Y > 80, layer.ToString());
+        }
+
+        // The sun is the greater light and the moon the lesser.
+        var sun = Of(SceneLayer.Sun).Last();
+        var moon = Of(SceneLayer.Moon).Where(shape => shape.Paint.Kind == PaintKind.Radial).Last();
+        (sun.Right - sun.Left).ShouldBeGreaterThan(moon.Right - moon.Left);
+        Of(SceneLayer.Stars).Count().ShouldBeGreaterThan(20);
+        Of(SceneLayer.Whales).Count(shape => shape.Paint.Kind == PaintKind.Linear).ShouldBe(2, "great whales: two bodies");
     }
 
     [TestCase(1, null)]

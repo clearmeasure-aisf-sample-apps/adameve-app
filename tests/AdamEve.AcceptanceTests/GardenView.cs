@@ -15,7 +15,26 @@ internal sealed record PixelBox(int Width, int Height, int[] Pixels)
 }
 
 /// <summary>What the renderer says of its last frame (the export <c>probe</c> of <c>js/render-three.js</c>).</summary>
-internal sealed record RendererProbe(int DrawCalls, int Triangles, int ShadowMap, double PixelRatio, bool Antialias, bool ContextLost, int Trees, int Parts, double[] Parallax, (double X, double Y)[] Screen);
+internal sealed record RendererProbe(int DrawCalls, int Triangles, int ShadowMap, double PixelRatio, bool Antialias, bool ContextLost, int Trees, int Parts, double[] Parallax, (double X, double Y)[] Screen)
+{
+    /// <summary>What stands on the tiles in view and is not a tree: shrubs, rocks, reeds.</summary>
+    public int Plants { get; init; }
+
+    /// <summary>The shafts of light, the glows (halos, mist, fireflies, pollen) and the wings of butterflies drawn.</summary>
+    public int Shafts { get; init; }
+
+    /// <inheritdoc cref="Shafts"/>
+    public int Glows { get; init; }
+
+    /// <inheritdoc cref="Shafts"/>
+    public int Wings { get; init; }
+
+    /// <summary>The clock of everything that moves by itself, in seconds: it stands under reduced motion.</summary>
+    public double Seconds { get; init; }
+
+    /// <summary>Where the feet of each character stood on the ground in that frame, in the order of their numbers.</summary>
+    public (double X, double Y)[] Anchors { get; init; } = [];
+}
 
 /// <summary>
 /// What the tests of the garden share: opening it from a saved game, the camera of the game for the play area of
@@ -175,7 +194,17 @@ internal static class GardenView
     /// <summary>A file kept with the test results for review. Never compared.</summary>
     public static string KeptPath(string folder, string name)
     {
-        var directory = Path.Combine(TestContext.CurrentContext.WorkDirectory, folder);
+        // The gallery and the review sheets are kept by their own names where the build keeps the results of these
+        // tests (TestResults/acceptance/<folder>/<name>): an attachment alone is filed under the number of its test.
+        var root = new DirectoryInfo(TestContext.CurrentContext.WorkDirectory);
+        while (root is not null && !File.Exists(Path.Combine(root.FullName, "AdamEve.slnx")))
+        {
+            root = root.Parent;
+        }
+
+        var directory = root is not null && folder is "gallery" or "m1-sheets"
+            ? Path.Combine(root.FullName, "TestResults", "acceptance", folder)
+            : Path.Combine(TestContext.CurrentContext.WorkDirectory, folder);
         Directory.CreateDirectory(directory);
         return Path.Combine(directory, name.Replace(' ', '-'));
     }
@@ -216,6 +245,27 @@ internal static class GardenView
         return new PixelBox(numbers[0], numbers[1], numbers[2..]);
     }
 
+    /// <summary>
+    /// Every pixel of the picture the renderer drew, as one number computed in the page from all of them, in the
+    /// frame it was drawn in: two frames have the same number exactly when they are the same picture (but for a
+    /// chance of one in four thousand million).
+    /// </summary>
+    public static Task<string> PictureAsync(IPage page) => page.EvaluateAsync<string>(
+        """
+        () => new Promise(resolve => requestAnimationFrame(() => {
+            const canvas = document.getElementById('game-canvas');
+            const copy = document.createElement('canvas');
+            copy.width = canvas.width;
+            copy.height = canvas.height;
+            const context = copy.getContext('2d');
+            context.drawImage(canvas, 0, 0);
+            const data = new Uint32Array(context.getImageData(0, 0, copy.width, copy.height).data.buffer);
+            let sum = 2166136261;
+            for (let at = 0; at < data.length; at++) { sum = Math.imul(sum ^ data[at], 16777619); }
+            resolve(`${copy.width}x${copy.height}:${sum >>> 0}`);
+        }))
+        """);
+
     public static bool Near(int pixel, int colour, int within) =>
         Math.Abs((pixel >> 16) - (colour >> 16)) <= within && Math.Abs(((pixel >> 8) & 255) - ((colour >> 8) & 255)) <= within && Math.Abs((pixel & 255) - (colour & 255)) <= within;
 
@@ -241,7 +291,15 @@ internal static class GardenView
             answer.GetProperty("trees").GetInt32(),
             answer.GetProperty("parts").GetInt32(),
             [.. answer.GetProperty("parallax").EnumerateArray().Select(value => value.GetDouble())],
-            [.. answer.GetProperty("screen").EnumerateArray().Select(point => (point[0].GetDouble(), point[1].GetDouble()))]);
+            [.. answer.GetProperty("screen").EnumerateArray().Select(point => (point[0].GetDouble(), point[1].GetDouble()))])
+        {
+            Plants = answer.GetProperty("plants").GetInt32(),
+            Shafts = answer.GetProperty("shafts").GetInt32(),
+            Glows = answer.GetProperty("glows").GetInt32(),
+            Wings = answer.GetProperty("wings").GetInt32(),
+            Seconds = answer.GetProperty("seconds").GetDouble(),
+            Anchors = [.. answer.GetProperty("anchors").EnumerateArray().Select(point => (point[0].GetDouble(), point[1].GetDouble()))],
+        };
     }
 
     /// <summary>
@@ -274,6 +332,71 @@ internal static class GardenView
         var xs = Enumerable.Range(0, zone.Points.Count / 2).Select(point => transform.ApplyX(zone.Points[point * 2], zone.Points[(point * 2) + 1])).ToList();
         var ys = Enumerable.Range(0, zone.Points.Count / 2).Select(point => transform.ApplyY(zone.Points[point * 2], zone.Points[(point * 2) + 1])).ToList();
         return (xs.Min(), ys.Min(), xs.Max(), ys.Max());
+    }
+
+    /// <summary>
+    /// The part of a zone of a rig that belongs to the zone in every frame of the walk in one facing, in the
+    /// figure's own flat space: what all the frames at 60 Hz have in common. A pixel read there lies in the zone
+    /// whichever frame of the step the renderer drew.
+    /// </summary>
+    public static (double Left, double Top, double Right, double Bottom) ZoneBoundsInEveryFrameOfTheWalk(Rig rig, string zoneId, Facing facing)
+    {
+        var walk = Garden().Animations.Single(animation => animation.Id == "walk");
+        var pose = new RigPose(rig);
+        var index = rig.ZoneIndex(zoneId);
+        var zone = rig.Zones[index];
+        double left = double.NegativeInfinity, top = double.NegativeInfinity, right = double.PositiveInfinity, bottom = double.PositiveInfinity;
+        for (var frame = 0; frame <= Math.Ceiling(walk.Duration * 60); frame++)
+        {
+            pose.Sample(walk, frame / 60.0, facing, Covering.None);
+            var transform = pose.ZoneTransform(index);
+            var xs = Enumerable.Range(0, zone.Points.Count / 2).Select(point => transform.ApplyX(zone.Points[point * 2], zone.Points[(point * 2) + 1])).ToList();
+            var ys = Enumerable.Range(0, zone.Points.Count / 2).Select(point => transform.ApplyY(zone.Points[point * 2], zone.Points[(point * 2) + 1])).ToList();
+            // A zone that leans with the body is taken by the box inside its corners.
+            xs.Sort();
+            ys.Sort();
+            left = Math.Max(left, xs[(xs.Count / 2) - 1]);
+            right = Math.Min(right, xs[xs.Count / 2]);
+            top = Math.Max(top, ys[(ys.Count / 2) - 1]);
+            bottom = Math.Min(bottom, ys[ys.Count / 2]);
+        }
+
+        return (left, top, right, bottom);
+    }
+
+    /// <summary>
+    /// The figure of a character as the renderer drew it in one frame, read in that very frame: where its feet are
+    /// on the screen, the one scale it is drawn at, and the pixels of the box around it (40 logical pixels wide, from
+    /// 56 above the feet to 2 below). The character may be in mid-step: the renderer itself says where it stands.
+    /// </summary>
+    public static async Task<(PixelBox Pixels, double Scale, bool Moving, string Facing)> FigureInThisFrameAsync(IPage page, int character)
+    {
+        var answer = await page.EvaluateAsync<JsonElement>(
+            """
+            ask => import(new URL('js/render-three.js', document.baseURI).href).then(module => new Promise(resolve => requestAnimationFrame(() => {
+                const root = document.getElementById('game');
+                const [x, y] = module.probe([]).anchors[ask[0]];
+                // The feet, and a point of the figure's plane 40 above them: the plane leans back by the tilt.
+                const [feet, above] = module.probe([[x, 0, y], [x, 40 * Math.cos(ask[1]), y - 40 * Math.sin(ask[1])]]).screen;
+                const scale = (feet[1] - above[1]) / 40;
+                const canvas = document.getElementById('game-canvas');
+                const ratio = canvas.width / canvas.clientWidth;
+                const left = Math.round((feet[0] - 20 * scale) * ratio), top = Math.round((feet[1] - 56 * scale) * ratio);
+                const w = Math.round(40 * scale * ratio), h = Math.round(58 * scale * ratio);
+                const copy = document.createElement('canvas');
+                copy.width = w;
+                copy.height = h;
+                const context = copy.getContext('2d');
+                context.drawImage(canvas, left, top, w, h, 0, 0, w, h);
+                const data = context.getImageData(0, 0, w, h).data;
+                const pixels = [];
+                for (let at = 0; at < data.length; at += 4) { pixels.push((data[at] << 16) | (data[at + 1] << 8) | data[at + 2]); }
+                resolve({ scale: scale * ratio, width: w, height: h, moving: root.dataset.moving === 'true', facing: root.dataset.facing, pixels });
+            })))
+            """,
+            new[] { character, PerspectiveCamera.TiltRadians });
+        var box = new PixelBox(answer.GetProperty("width").GetInt32(), answer.GetProperty("height").GetInt32(), [.. answer.GetProperty("pixels").EnumerateArray().Select(pixel => pixel.GetInt32())]);
+        return (box, answer.GetProperty("scale").GetDouble(), answer.GetProperty("moving").GetBoolean(), answer.GetProperty("facing").GetString() ?? string.Empty);
     }
 
     /// <summary>The bounds of every part of a figure in the figure's own flat space, in a frame of the idle stance.</summary>

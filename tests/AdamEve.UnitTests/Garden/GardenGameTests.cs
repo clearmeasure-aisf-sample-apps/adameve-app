@@ -52,8 +52,12 @@ public class GardenGameTests
             return new PerspectiveCamera(viewWidth, viewHeight, List[RenderList.EyeX], List[RenderList.EyeY] - (distance * Math.Cos(List[RenderList.Tilt])), distance);
         }
 
+        /// <summary>The player's setting "reduce motion", as the browser reports it.</summary>
+        public bool ReducedMotion { get; set; }
+
         public FrameEvents Frame(int held = 0, int pressed = 0, (double X, double Y)? tap = null, bool menu = false)
         {
+            input[InputBlock.Still] = ReducedMotion ? 1 : 0;
             input[InputBlock.Held] = held;
             input[InputBlock.Pressed] = pressed;
             input[InputBlock.Menu] = menu ? 1 : 0;
@@ -369,9 +373,33 @@ public class GardenGameTests
             parts.ShouldAllBe(part => RigStructure.AllowedColours(PartRole.Body).Contains(part.Colour) || part.Colour == RigStructure.Hair);
         }
 
-        entries.ShouldContain(entry => entry.AtlasId == atlas.SpriteId(TileKind.TreeOfLife));
+        entries.ShouldContain(entry => entry.AtlasId == atlas.SpriteId(SceneryKind.TreeOfLife));
         entries.ShouldAllBe(entry => entry.AtlasId >= 0 && entry.AtlasId < atlas.Count);
-        atlas.Count.ShouldBe(garden.Adam.Parts.Count + garden.Woman.Parts.Count + 4, "the atlas holds the parts of the two rigs and the four trees: no foliage cluster");
+        var scenery = Enum.GetValues<SceneryKind>().Count(kind => kind != SceneryKind.None);
+        atlas.Count.ShouldBe(garden.Adam.Parts.Count + garden.Woman.Parts.Count + scenery, "the atlas holds the parts of the two rigs and one image for each kind of scenery: no foliage cluster for a figure");
+        Enumerable.Range(0, garden.Adam.Parts.Count + garden.Woman.Parts.Count).ShouldAllBe(id => atlas.KindOf(id) == SceneryKind.None);
+    }
+
+    [Test]
+    public void Frame_AStandingFigureWithAndWithoutReducedMotion_ShouldBreatheOnlyWithoutItAndWalkEitherWay()
+    {
+        var moving = new StubBrowser();
+        var still = new StubBrowser { ReducedMotion = true };
+        List<(int AtlasId, double X, double Y, int Character)> Figures(StubBrowser browser) => [.. browser.Entries().Where(entry => entry.Character != 0)];
+        var movingBefore = Figures(moving);
+        still.Frame();
+        var stillBefore = Figures(still);
+
+        moving.Frames(40);
+        still.Frames(40);
+
+        Figures(moving).ShouldNotBe(movingBefore, "the stance breathes and the hair sways");
+        Figures(still).ShouldBe(stillBefore, "under reduced motion a standing figure does not move");
+        var tile = still.Game.PlayerTile;
+        still.Frame(held: InputBlock.Right);
+        still.Frames(60);
+        still.Game.PlayerTile.ShouldNotBe(tile, "the player still walks");
+        still.Verdicts.ShouldAllBe(verdict => verdict == "ok");
     }
 
     [Test]
@@ -381,10 +409,11 @@ public class GardenGameTests
         var tree = Enumerable.Range(0, map.Width * map.Height)
             .Select(index => new TilePos(index % map.Width, index / map.Width))
             .First(tile => map.KindAt(tile) == TileKind.Tree && map.IsWalkable(new TilePos(tile.X, tile.Y - 1)) && map.IsWalkable(new TilePos(tile.X, tile.Y + 1)));
+        var kind = new GardenScenery(map).KindAt(tree);
         var behind = new StubBrowser(SaveAt(tree.X, tree.Y - 1));
         var inFront = new StubBrowser(SaveAt(tree.X, tree.Y + 1));
         var torso = behind.Game.Atlas.PartId(0, behind.Garden.Adam.PartIndex("torso"));
-        var sprite = behind.Game.Atlas.SpriteId(TileKind.Tree);
+        var sprite = behind.Game.Atlas.SpriteId(kind);
         double treeX = (tree.X + 0.5) * 32;
 
         int IndexOfTree(StubBrowser browser) => browser.Entries().ToList().FindIndex(entry => entry.AtlasId == sprite && Math.Abs(entry.X - treeX) < 0.01 && entry.Y > tree.Y * 32 && entry.Y < (tree.Y + 1) * 32);
@@ -466,9 +495,12 @@ public class GardenGameTests
 
         numbers[0].ShouldBe(atlas.Count);
         atlas.Shapes(atlas.PartId(1, 0)).Count.ShouldBe(1);
-        atlas.Shapes(atlas.SpriteId(TileKind.TreeOfKnowledge)).ShouldBe(PlaceholderArt.SpriteOf(TileKind.TreeOfKnowledge));
-        atlas.SpriteId(TileKind.Grass).ShouldBe(-1);
-        numbers.Length.ShouldBe(1 + atlas.Count + (6 * Enumerable.Range(0, atlas.Count).Sum(id => atlas.Shapes(id).Count)));
+        atlas.Shapes(atlas.SpriteId(SceneryKind.TreeOfKnowledge)).ShouldBe(PlaceholderArt.SpriteOf(SceneryKind.TreeOfKnowledge));
+        atlas.SpriteId(SceneryKind.None).ShouldBe(-1);
+        numbers.Length.ShouldBe(1 + atlas.Count + (7 * Enumerable.Range(0, atlas.Count).Sum(id => atlas.Shapes(id).Count)));
+        atlas.ToKindNumbers().Length.ShouldBe(atlas.Count);
+        atlas.ToKindNumbers()[atlas.SpriteId(SceneryKind.PalmTree)].ShouldBe((int)SceneryKind.PalmTree);
+        atlas.ToKindNumbers()[atlas.PartId(1, 0)].ShouldBe(0);
     }
 
     [Test]
@@ -488,7 +520,7 @@ public class GardenGameTests
         (RenderList.Anchors + (RenderList.AnchorCount * 2)).ShouldBeLessThanOrEqualTo(RenderList.HeaderLength);
         foreach (var entry in entries)
         {
-            var sprite = Enum.GetValues<TileKind>().Any(kind => browser.Game.Atlas.SpriteId(kind) == entry.AtlasId);
+            var sprite = browser.Game.Atlas.KindOf(entry.AtlasId) != SceneryKind.None;
             entry.Character.ShouldBe(sprite ? 0 : entry.AtlasId < garden.Adam.Parts.Count ? 1 : 2);
         }
 
@@ -556,12 +588,12 @@ public class GardenGameTests
     }
 
     [Test]
-    public void Frame_TheRenderList_ShouldListTheTreesThePerspectiveCameraSeesAndNotTheWholeMap()
+    public void Frame_TheRenderList_ShouldListTheSceneryThePerspectiveCameraSeesAndNotTheWholeMap()
     {
         var browser = new StubBrowser(SaveAt(29, 24), width: 1280, height: 720);
         var map = browser.Garden.Map;
         var camera = browser.Camera();
-        var atlas = browser.Game.Atlas;
+        var scenery = browser.Game.Scenery;
         var (firstRow, lastRow) = camera.VisibleRows(map);
         var expected = new List<(double X, double Y)>();
         for (var row = firstRow; row <= lastRow; row++)
@@ -569,7 +601,7 @@ public class GardenGameTests
             var (firstColumn, lastColumn) = camera.VisibleColumns(row, map);
             for (var column = firstColumn; column <= lastColumn; column++)
             {
-                if (atlas.SpriteId(map.KindAt(new TilePos(column, row))) >= 0)
+                if (scenery.KindAt(new TilePos(column, row)) != SceneryKind.None)
                 {
                     expected.Add(((column + 0.5) * 32, ((row + 1) * 32) - 6));
                 }
@@ -577,7 +609,7 @@ public class GardenGameTests
         }
 
         var listed = browser.Entries().Where(entry => entry.Character == 0).Select(entry => (entry.X, entry.Y)).ToList();
-        var all = Enumerable.Range(0, map.Width * map.Height).Count(index => atlas.SpriteId(map.KindAt(new TilePos(index % map.Width, index / map.Width))) >= 0);
+        var all = Enumerable.Range(0, map.Width * map.Height).Count(index => scenery.KindAt(new TilePos(index % map.Width, index / map.Width)) != SceneryKind.None);
 
         listed.ShouldBe(expected);
         listed.Count.ShouldBeGreaterThan(3);

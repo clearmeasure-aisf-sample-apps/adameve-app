@@ -132,6 +132,27 @@ public partial class ThreeVendorTests
     }
 
     [Test]
+    public void RenderThree_TheKindsOfScenery_ShouldHaveTheNumbersOfSceneryKind()
+    {
+        var kinds = Scenery().Match(Module()).Groups[1].Value;
+
+        var numbers = Pair().Matches(kinds).ToDictionary(match => match.Groups[1].Value, match => int.Parse(match.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture));
+
+        numbers.ShouldBe(
+            Enum.GetValues<SceneryKind>().Where(kind => kind != SceneryKind.None).ToDictionary(kind => char.ToLowerInvariant(kind.ToString()[0]) + kind.ToString()[1..], kind => (int)kind),
+            ignoreOrder: true);
+        Module().ShouldContain($"const LAST_TREE = {(int)SceneryKind.ForestTree};");
+        Module().ShouldContain("kind >= 4 && kind <= 7");
+        ((int)TileKind.Tree, (int)TileKind.FigTree).ShouldBe((4, 7), "the renderer takes the four tile kinds with a tree on them as these numbers");
+        foreach (var script in new[] { Module(), CanvasModule() })
+        {
+            script.ShouldContain("driftColours: 40,");
+        }
+
+        (TileKinds.Count * 4).ShouldBe(40, "the colours of the drifts of flowers follow the four numbers of each tile kind");
+    }
+
+    [Test]
     public void Shell_TheLayoutOfTheRenderListAndOfTheInputBlock_ShouldBeTheOneOfTheGame()
     {
         var shell = Shell();
@@ -144,6 +165,9 @@ public partial class ThreeVendorTests
         shell.ShouldContain($"export const PERSPECTIVE = {InputBlock.Perspective};");
         shell.ShouldContain($"export const FLAT = {InputBlock.Flat};");
         shell.ShouldContain($"input[{InputBlock.Projection}] = shell.projection;");
+        shell.ShouldContain($"input[{InputBlock.Still}] = shell.still;");
+        shell.ShouldContain("window.matchMedia(\"(prefers-reduced-motion: reduce)\")");
+        InputBlock.Still.ShouldBeLessThan(InputBlock.Length);
         shell.ShouldContain($"input[{InputBlock.TapX}] = shell.tapX;");
         shell.ShouldContain($"input[{InputBlock.TapY}] = shell.tapY;");
         shell.ShouldContain($"input[{InputBlock.ViewWidth}] = shell.viewWidth;");
@@ -218,7 +242,13 @@ public partial class ThreeVendorTests
         module.ShouldContain("g.sun.shadow.mapSize.set(SHADOW_MAP, SHADOW_MAP);");
         module.ShouldContain("const antialias = (window.devicePixelRatio || 1) < 2;");
         module.ShouldContain("new THREE.InstancedMesh(geometry, g.solidMaterial, TREE_CAPACITY)");
-        Regex.Count(module, "castShadow = true").ShouldBe(5, "the sun, the land, the props, the flowers and the trees cast a shadow: nothing else, and no figure");
+        Regex.Count(module, "castShadow = true").ShouldBe(3, "the sun, the stones and the planted trees cast a shadow: nothing else (not the thicket, not the grass, not the air), and no figure");
+        module.ShouldContain("if (kind < SCENERY.forestTree) {");
+        module.ShouldContain("const CHUNK_TILES = 16;");
+        module.ShouldContain("haze: 0xE2E8C6,", customMessage: "the full-system test reads this colour where the haze closes");
+        module.ShouldNotContain("WebGLRenderTarget");
+        module.ShouldNotContain("new Image(");
+        module.ShouldNotContain("TextureLoader");
         module.ShouldNotContain("EffectComposer");
         module.ShouldNotContain("examples/jsm");
     }
@@ -250,6 +280,9 @@ public partial class ThreeVendorTests
 
     [GeneratedRegex("import\\(\"([^\"]+)\"\\)")]
     private static partial Regex DynamicImport();
+
+    [GeneratedRegex(@"const SCENERY = \{([^}]*)\};")]
+    private static partial Regex Scenery();
 
     [GeneratedRegex(@"const KIND = \{([^}]*)\};")]
     private static partial Regex Kinds();

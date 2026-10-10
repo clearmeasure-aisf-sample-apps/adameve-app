@@ -107,6 +107,8 @@ public sealed class GameSession(ContentLoadResult content)
         var tiles = garden.Map.ToKindNumbers();
         var ground = GroundNumbers();
         var atlas = started.Atlas.ToNumbers();
+        var kinds = started.Atlas.ToKindNumbers();
+        var cover = started.Scenery.ToCoverNumbers();
         string[] verdicts = [.. started.VerdictNames];
         ActiveRenderer = RendererKind.Canvas;
         RendererFallback = contextLost ? RendererChoice.ContextLost : RendererChoice.Asked;
@@ -123,7 +125,7 @@ public sealed class GameSession(ContentLoadResult content)
                 }
 
                 var attached = await GameInterop.AttachThree(
-                    new ArraySegment<double>(list), new ArraySegment<double>(input), tiles, ground, atlas, verdicts,
+                    new ArraySegment<double>(list), new ArraySegment<double>(input), tiles, ground, atlas, kinds, cover, verdicts,
                     garden.Map.Width, garden.Map.Height, garden.Map.TileSize, PlaceholderArt.Backdrop);
                 if (attached)
                 {
@@ -155,6 +157,8 @@ public sealed class GameSession(ContentLoadResult content)
                 tiles,
                 ground,
                 atlas,
+                kinds,
+                cover,
                 verdicts,
                 garden.Map.Width,
                 garden.Map.Height,
@@ -222,7 +226,13 @@ public sealed class GameSession(ContentLoadResult content)
 
     private static double[] GroundNumbers()
     {
-        var numbers = new double[TileKinds.Count * 4];
+        // For each tile kind its four numbers, then the colours of the drifts of flowers.
+        var numbers = new double[(TileKinds.Count * 4) + PlaceholderArt.DriftColours.Count];
+        for (var drift = 0; drift < PlaceholderArt.DriftColours.Count; drift++)
+        {
+            numbers[(TileKinds.Count * 4) + drift] = PlaceholderArt.DriftColours[drift];
+        }
+
         for (var kind = 0; kind < TileKinds.Count; kind++)
         {
             var style = PlaceholderArt.GroundOf((TileKind)kind);

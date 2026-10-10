@@ -180,7 +180,9 @@ public class ConcealmentTests
         {
             rig.Parts.ShouldAllBe(part => !part.Id.Contains("foliage", StringComparison.OrdinalIgnoreCase) && !part.Id.Contains("leaf", StringComparison.OrdinalIgnoreCase));
             rig.Parts.Where(part => part.Role == PartRole.Hair).ShouldNotBeEmpty();
-            rig.Parts.Where(part => part.Role == PartRole.Hair).ShouldAllBe(part => part.Bone == "head");
+            // To the head itself, or to the bone of the head on which the hair that moves hangs (RigStructure).
+            rig.Parts.Where(part => part.Role == PartRole.Hair).ShouldAllBe(part => part.Bone == "head" || part.Bone == "hair");
+            rig.Bones.Single(bone => bone.Id == "hair").Parent.ShouldBe("head");
             rig.Zones.Single(zone => zone.Id == "pelvis").Bone.ShouldBe("hip");
         }
 
@@ -364,6 +366,42 @@ public class ConcealmentTests
 
         exposed.ShouldBe("chest");
         FirstExposed(woman, Facing.S, scale: 2).ShouldBeNull();
+    }
+
+    [Test]
+    public void FirstExposedZone_TheHipsWithCornersRoundedSoFarThatTheyOpenTheZone_ShouldReportThePelvicZone()
+    {
+        // A rounded part covers only what lies inside its rounded outline: the corners that are cut away cover
+        // nothing. Hips rounded to half their shorter side no longer cover the corners of the pelvic zone.
+        foreach (var rig in ShippedRigs())
+        {
+            var rounder = StubMap.With(rig, parts: rig.Parts.Select(part => part.Id == "hips" ? part with { Round = Math.Min(part.Width, part.Height) / 2 } : part));
+
+            rig.Parts.Single(part => part.Id == "hips").Shape.ShouldBe(PartShape.Rounded);
+            RigStructure.Violations(rounder).ShouldBeEmpty();
+            foreach (var scale in Scales.Where(scale => scale >= 1))
+            {
+                FirstExposed(rounder, Facing.S, scale: scale).ShouldBe("pelvis", $"{rig.Id} at {scale}x");
+                FirstExposed(rig, Facing.S, scale: scale).ShouldBeNull();
+            }
+        }
+    }
+
+    [Test]
+    public void ReachesInto_ARoundedPartWhoseCutCornerLiesOverTheCornerOfTheZone_ShouldCountAsReachingIn()
+    {
+        // For "nothing but the smooth body reaches into the pelvic zone" a rounded part is taken as the whole
+        // rectangle it is cut from: the stricter reading.
+        var adam = StubMap.Shipped().Adam;
+        var placement = new PartPlacement(9, 8, 30, 0);
+        var corner = new RigPart("hair-low", "hip", PartShape.Rounded, 4.2, 4.2, RigStructure.Hair, PartRole.Hair, [], placement, placement, placement, 0, 2.1);
+        var rig = StubMap.With(adam, parts: adam.Parts.Append(corner));
+        var pose = new RigPose(rig);
+        pose.Sample(Idle(), 0, Facing.S, Covering.None);
+        var placed = pose.Parts.ToArray().Single(part => rig.Parts[part.PartIndex].Id == "hair-low");
+
+        new ConcealmentChecker().ReachesInto(pose, rig.ZoneIndex("pelvis"), placed).ShouldBeTrue("the rectangle reaches 0.1 into the zone, though the rounded corner does not");
+        FirstExposed(rig, Facing.S).ShouldBe("pelvis");
     }
 
     [Test]

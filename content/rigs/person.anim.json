@@ -2,35 +2,24 @@
   "animations": [
     {
       "id": "idle",
-      "duration": 2.4,
+      "duration": 3.2,
       "tracks": [
-        {
-          "bone": "torso",
-          "keys": [{"time": 0, "x": 0, "y": 0, "rotation": 0}, {"time": 1.2, "x": 0, "y": -0.6, "rotation": 0}, {"time": 2.4, "x": 0, "y": 0, "rotation": 0}]}
+        {"bone": "torso", "keys": [{"time": 0, "x": 0, "y": 0, "rotation": 0}, {"time": 1.6, "x": 0, "y": -0.6, "rotation": 0}, {"time": 3.2, "x": 0, "y": 0, "rotation": 0}]},
+        {"bone": "hair", "keys": [{"time": 0, "x": 0, "y": 0, "rotation": 0}, {"time": 0.8, "x": 0.5, "y": 0, "rotation": 0}, {"time": 1.6, "x": 0, "y": 0, "rotation": 0}, {"time": 2.4, "x": -0.5, "y": 0, "rotation": 0}, {"time": 3.2, "x": 0, "y": 0, "rotation": 0}]}
       ]
     },
     {
       "id": "walk",
-      "duration": 0.5,
+      "duration": 0.56,
       "tracks": [
-        {
-          "bone": "torso",
-          "keys": [{"time": 0, "x": 0, "y": 0, "rotation": 0}, {"time": 0.125, "x": 0, "y": -1, "rotation": 0}, {"time": 0.25, "x": 0, "y": 0, "rotation": 0}, {"time": 0.375, "x": 0, "y": -1, "rotation": 0}, {"time": 0.5, "x": 0, "y": 0, "rotation": 0}]},
-        {
-          "bone": "legL",
-          "frontRotation": 0.35,
-          "keys": [{"time": 0, "x": 0, "y": 0, "rotation": 24}, {"time": 0.25, "x": 0, "y": 0, "rotation": -24}, {"time": 0.5, "x": 0, "y": 0, "rotation": 24}]},
-        {
-          "bone": "legR",
-          "frontRotation": 0.35,
-          "keys": [{"time": 0, "x": 0, "y": 0, "rotation": -24}, {"time": 0.25, "x": 0, "y": 0, "rotation": 24}, {"time": 0.5, "x": 0, "y": 0, "rotation": -24}]},
-        {
-          "bone": "armL",
-          "frontRotation": 0.35,
-          "keys": [{"time": 0, "x": 0, "y": 0, "rotation": -18}, {"time": 0.25, "x": 0, "y": 0, "rotation": 18}, {"time": 0.5, "x": 0, "y": 0, "rotation": -18}]},
-        {
-          "bone": "armR",
-          "frontRotation": 0.35,
-          "keys": [{"time": 0, "x": 0, "y": 0, "rotation": 18}, {"time": 0.25, "x": 0, "y": 0, "rotation": -18}, {"time": 0.5, "x": 0, "y": 0, "rotation": 18}]}
+        {"bone": "hip", "keys": [{"time": 0, "x": 0.4, "y": 0.6, "rotation": 0}, {"time": 0.14, "x": 0, "y": -0.6, "rotation": 0}, {"time": 0.28, "x": -0.4, "y": 0.6, "rotation": 0}, {"time": 0.42, "x": 0, "y": -0.6, "rotation": 0}, {"time": 0.56, "x": 0.4, "y": 0.6, "rotation": 0}]},
+        {"bone": "torso", "frontRotation": 0, "keys": [{"time": 0, "x": 0, "y": 0, "rotation": 2.2}, {"time": 0.14, "x": 0, "y": -0.3, "rotation": 1.4}, {"time": 0.28, "x": 0, "y": 0, "rotation": 2.2}, {"time": 0.42, "x": 0, "y": -0.3, "rotation": 1.4}, {"time": 0.56, "x": 0, "y": 0, "rotation": 2.2}]},
+        {"bone": "hair", "frontRotation": 1, "keys": [{"time": 0, "x": -0.9, "y": 0, "rotation": 0.8}, {"time": 0.14, "x": -0.2, "y": 0.3, "rotation": 0}, {"time": 0.28, "x": 0.9, "y": 0, "rotation": -0.8}, {"time": 0.42, "x": 0.2, "y": 0.3, "rotation": 0}, {"time": 0.56, "x": -0.9, "y": 0, "rotation": 0.8}]},
+        {"bone": "legL", "frontRotation": 0.3, "keys": [{"time": 0, "x": 0, "y": -0.6, "rotation": 26}, {"time": 0.14, "x": 0, "y": -0.9, "rotation": 2}, {"time": 0.28, "x": 0, "y": -0.6, "rotation": -26}, {"time": 0.42, "x": 0, "y": 0.6, "rotation": -2}, {"time": 0.56, "x": 0, "y": -0.6, "rotation": 26}]},
+        {"bone": "legR", "frontRotation": 0.3, "keys": [{"time": 0, "x": 0, "y": -0.6, "rotation": -26}, {"time": 0.14, "x": 0, "y": 0.6, "rotation": -2}, {"time": 0.28, "x": 0, "y": -0.6, "rotation": 26}, {"time": 0.42, "x": 0, "y": -0.9, "rotation": 2}, {"time": 0.56, "x": 0, "y": -0.6, "rotation": -26}]},
+        {"bone": "armL", "frontRotation": 0.3, "keys": [{"time": 0, "x": 0, "y": 0, "rotation": -22}, {"time": 0.28, "x": 0, "y": 0, "rotation": 22}, {"time": 0.56, "x": 0, "y": 0, "rotation": -22}]},
+        {"bone": "armR", "frontRotation": 0.3, "keys": [{"time": 0, "x": 0, "y": 0, "rotation": 22}, {"time": 0.28, "x": 0, "y": 0, "rotation": -22}, {"time": 0.56, "x": 0, "y": 0, "rotation": 22}]}
       ]
-    }]}
+    }
+  ]
+}

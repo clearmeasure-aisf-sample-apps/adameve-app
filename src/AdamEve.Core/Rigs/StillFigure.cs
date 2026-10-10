@@ -8,7 +8,8 @@ namespace AdamEve.Core.Rigs;
 /// <param name="Width">The width in logical pixels.</param>
 /// <param name="Height">The height in logical pixels.</param>
 /// <param name="Colour">The colour, 0xRRGGBB.</param>
-public readonly record struct PlacedShape(PartShape Shape, Affine Transform, double Width, double Height, int Colour);
+/// <param name="Round">The radius of the corners of a rounded rectangle; 0 for the other outlines.</param>
+public readonly record struct PlacedShape(PartShape Shape, Affine Transform, double Width, double Height, int Colour, double Round = 0);
 
 /// <summary>
 /// A character drawn outside the garden, standing still: at the character select, and far away in the sixth day of
@@ -57,7 +58,7 @@ public sealed class StillFigure
         foreach (var placed in pose.Parts)
         {
             var part = rig.Parts[placed.PartIndex];
-            shapes.Add(new PlacedShape(part.Shape, placed.Transform, part.Width, part.Height, light ?? part.Colour));
+            shapes.Add(new PlacedShape(part.Shape, placed.Transform, part.Width, part.Height, light ?? part.Colour, part.Round));
         }
 
         return new StillFigure(shapes, Ok);

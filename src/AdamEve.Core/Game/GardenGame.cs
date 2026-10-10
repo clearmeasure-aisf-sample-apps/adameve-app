@@ -35,6 +35,7 @@ public sealed class GardenGame
     private const double SpriteBaseAboveTileBottom = 6;
 
     private readonly TileMap map;
+    private readonly GardenScenery scenery;
     private readonly Actor[] actors;
     private readonly Actor[] drawOrder;
     private readonly RigAnimation idle;
@@ -69,6 +70,7 @@ public sealed class GardenGame
         ArgumentNullException.ThrowIfNull(woman);
         ArgumentNullException.ThrowIfNull(animations);
         this.map = map;
+        scenery = new GardenScenery(map);
         resumed = save ?? new SaveGame();
         idle = animations.First(animation => animation.Id == "idle");
         walk = animations.First(animation => animation.Id == "walk");
@@ -105,6 +107,9 @@ public sealed class GardenGame
 
         VerdictNames = names;
     }
+
+    /// <summary>The planting of the garden: what stands on each tile, and where the flowers lie.</summary>
+    public GardenScenery Scenery => scenery;
 
     /// <summary>Every image a frame may name.</summary>
     public AtlasCatalog Atlas { get; }
@@ -157,7 +162,12 @@ public sealed class GardenGame
     {
         var events = FrameEvents.None;
         var steps = loop.Advance(nowMilliseconds);
-        ambientSeconds += loop.FrameSeconds;
+        if (input[InputBlock.Still] == 0)
+        {
+            // The stance of a standing figure breathes, unless the player asks for reduced motion.
+            ambientSeconds += loop.FrameSeconds;
+        }
+
         if (input[InputBlock.Menu] != 0)
         {
             events |= FrameEvents.Menu;
@@ -265,7 +275,7 @@ public sealed class GardenGame
 
         Concealment = VerdictNames[verdict];
 
-        // Sprites and characters by depth: the trees row by row from the north, each character before the first row
+        // Sprites and characters by depth: what stands on the tiles row by row from the north, each character before the first row
         // whose trees stand nearer the viewer than its feet. The canvas draws in this order; a renderer with depth
         // keeps the order only among the parts of one character.
         drawOrder[0] = actors[0].Y <= actors[1].Y ? actors[0] : actors[1];
@@ -288,7 +298,7 @@ public sealed class GardenGame
                 : camera.VisibleColumns(row, map);
             for (var column = firstColumn; column <= lastColumn; column++)
             {
-                var sprite = Atlas.SpriteId(map.KindAt(new TilePos(column, row)));
+                var sprite = Atlas.SpriteId(scenery.KindAt(new TilePos(column, row)));
                 if (sprite >= 0 && count < RenderList.Capacity - SpriteReserve)
                 {
                     Write(list, ref count, sprite, Affine.Translation((column + 0.5) * size, baseline), 0);

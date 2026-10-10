@@ -7,4 +7,5 @@ namespace AdamEve.Core.Rigs;
 /// <param name="Width">The width in logical pixels.</param>
 /// <param name="Height">The height in logical pixels.</param>
 /// <param name="Colour">The colour, 0xRRGGBB. A shape is opaque.</param>
-public readonly record struct FlatShape(PartShape Shape, double X, double Y, double Width, double Height, int Colour);
+/// <param name="Round">The radius of the corners of a rounded rectangle; 0 for the other outlines.</param>
+public readonly record struct FlatShape(PartShape Shape, double X, double Y, double Width, double Height, int Colour, double Round = 0);

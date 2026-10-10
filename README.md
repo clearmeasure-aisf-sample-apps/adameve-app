@@ -16,13 +16,34 @@ an on-screen D-pad or a tap on a tile; the game is saved in the browser and resu
 not built yet. The game-written text is listed for review in [content/README.md](content/README.md). The slices
 that follow are in section 10 of the design.
 
-**Placeholder art.** Everything the game draws is made by code: flat colours, ellipses and rectangles, in the
-garden (where the renderer gives the trees, the thicket and the stones height from those same shapes) and as shapes
-of the page at the title and in the days of creation. God is never drawn as a
-figure: his presence is a warm light, shown while his voice speaks on a Scripture card. No image,
-sound or font file was generated, downloaded or added, and the sound setting has nothing to play yet. The figures
-of Adam and the woman are abstract cut-out rigs: seven plain blocks each, never anatomical, and for the woman long
-hair that covers her chest (design, sections 1 and 5.3, decision D18). They carry no foliage.
+**Art made by code (the art pass of 2026-10-10).** Everything the game draws is made by code when it is drawn:
+solids from a few primitives with a colour for each corner, gradients, three small patterns computed into
+textures, and instances. No image, model, sound or font file was generated, downloaded or added, no shader was
+taken from anywhere, and the sound setting has nothing to play yet.
+
+- *The garden.* What stands where is a fact of the world, in `AdamEve.Core.World.GardenScenery`, from the map and
+  one fixed seed: four kinds of tree on the tree tiles (broad, tall, fruit-bearing, palm), flowering shrubs and
+  mossy rocks at the edge of the thicket, forest behind it, reeds and rocks at the river's edge, and the flowers in
+  drifts of one colour. It changes no rule: only what nobody can walk on has height, the ground a character walks
+  on carries grass and flowers and nothing else, and the crossings stay clear. The Three.js renderer builds the
+  look: ground that shades smoothly with no tile edge, a river with a sloping shore, slow crests, glints and rings
+  about a character on the stones, a low warm sun with long soft shadows and cool shade, faint shafts of light
+  beside the crowns, mist over the spring, pollen, fireflies in the shade, butterflies over the flowers, birds and
+  slow clouds before three ridges of hills that deepen toward blue. The two trees in the midst of the garden
+  (Genesis 2:9) stand where the map puts them and are unlike: the tree of life tall, white-gold and green-gold
+  with blossoms that glow in a calm warm light; the tree of the knowledge of good and evil low, wide and dark,
+  silver-barked, its leaves turning a silver side, in a cool light that is never quite still. Neither is
+  interactive, and no fruit is drawn on the second. Everything that moves by itself moves with one clock, which
+  stands under `prefers-reduced-motion`. The canvas fallback draws the same garden plainly and flat.
+- *The days of creation* are drawn in the same manner, as shapes of the page (`CreationPicture`, `CreationArt`):
+  one composition for all seven days, each layer showing what its verses tell and nothing else.
+- *The figures* of Adam and the woman are abstract cut-out rigs: the same seven plain blocks each, now with
+  rounded corners, never anatomical, and for the woman long hair that covers her chest (design, sections 1 and
+  5.3, decision D18). They carry no foliage. Walking has weight (the body sinks and rises, the legs take it up)
+  and the hair moves.
+
+God is never drawn as a figure: his presence is a warm light, shown while his voice speaks on a Scripture card.
+Pictures of all of it are kept with every build for review: artifact `test-results`, `acceptance/gallery/`.
 
 **The garden in perspective (decision D18, 2026-10-10).** Three.js (WebGL 2) draws the garden through a perspective
 camera that follows the player, fixed in direction and tilt: nearer things are larger and cross the screen faster,
@@ -62,7 +83,7 @@ the same rigs and judged by the same checks (`StillFigure`), with the verdict on
 | `tests/AdamEve.AcceptanceTests` | Playwright: desktop Chromium, Pixel 7 (Chromium), iPhone 13 (WebKit), headless |
 | `content/kjv-genesis-1-3.txt` | Genesis 1 to 3, King James Version: the only source of Scripture, byte for byte (see [NOTICE](NOTICE)) |
 | `content/glossary.json`, `content/README.md` | The glossary (game text), and the list of all game-written text for review |
-| `content/maps`, `content/rigs` | The map of the garden (Tiled JSON) and the placeholder rigs with their concealment zones |
+| `content/maps`, `content/rigs` | The map of the garden (Tiled JSON) and the rigs with their concealment zones |
 | `deploy/` | `deploy.ps1`, `verify.ps1`, `settings.json`, `infra/main.bicep`: what the game runs on, and how an environment gets a version |
 | `PrivateBuild.ps1`, `build.ps1`, `BuildFunctions.ps1` | The build |
 

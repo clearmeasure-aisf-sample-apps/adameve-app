@@ -527,6 +527,15 @@ stand at the end.
 - **No text inside images.** All words are DOM text. Generated images garble letters, and Scripture belongs only in
   cards.
 
+**Art pass, 2026-10-10 (Jeffrey: "Keep going. Need more creative graphics").** Until the generated assets of
+section 5.5 exist, all art is drawn by code, and with care: a stylised cut-paper, low-poly look in one family of
+colours (warm light, cool shade, greens from gold to teal). The planting of the garden is a fact of the world
+(`AdamEve.Core.World.GardenScenery`, from the map and a fixed seed) and changes no rule: only what cannot be walked
+on has height. The two trees in the midst follow this section: one tall, warm and steady, one low, cool and
+flickering; no fruit is drawn yet and neither is interactive (D14). The pictures of the days of creation are drawn
+in the same manner. What code cannot draw well (faces with expression, animals with character, the fruit) waits
+for section 5.5.
+
 ### 5.3 Characters as cut-out rigs
 
 Adam, the woman, the serpent and the larger animals are **cut-out rigs**, not frame-by-frame sprite sheets:
@@ -553,6 +562,15 @@ shape, with nothing drawn in it. The chest zone of the woman lies on the torso a
 and side views. The woman's long hair is a fall behind the body (in front of it, seen from behind), two curtains
 beside the face, and two locks over the chest with rounded tips at the waist. Under the perspective camera
 (section 6) a rig is drawn as a flat cut-out that faces the camera: never a body in space.
+
+**Art pass, 2026-10-10 (Jeffrey: "Keep going. Need more creative graphics"; the session's reading, to be reviewed
+with the rest of the amended rule).** For figures with more grace and nothing more: a third plain outline,
+`Rounded` (a rectangle whose corners are rounded by one radius), used for the limbs, the trunk and the locks; a bone
+`hair` on the head, on which the hair that moves hangs (the fall behind the back, the crown), while the hair that
+covers the woman's chest stays on the head itself; a walk with weight (the hips sink and rise, the legs take it up,
+the trunk leans a little in profile). The skeleton, the seven blocks, the zones, the colours and every check are as
+they were; the rendered-image check now also reads frames in mid-step. In profile the woman's front hair lies on
+her trunk instead of standing out before it.
 
 ### 5.4 Audio
 
