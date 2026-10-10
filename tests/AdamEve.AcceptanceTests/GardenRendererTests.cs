@@ -290,7 +290,7 @@ public class GardenRendererTests : PlaywrightTest
             var margin = 6.0;
             var around = GardenView.OnScreen(camera, feet, bounds.Left - margin, bounds.Top - margin, bounds.Right + margin, bounds.Bottom + margin);
             var figure = await GardenView.PixelsAsync(page, around.Left, around.Top, around.Width, around.Height);
-            var drawn = Enumerable.Range(0, figure.Pixels.Length).Where(index => GardenView.IsSkin(figure.Pixels[index], 3) || GardenView.Near(figure.Pixels[index], GardenView.Hair, 3)).ToList();
+            var drawn = Enumerable.Range(0, figure.Pixels.Length).Where(index => GardenView.IsSkin(figure.Pixels[index], 3) || GardenView.IsHair(figure.Pixels[index], 3)).ToList();
             drawn.Count.ShouldBeGreaterThan(200, why);
             var edge = margin * scale * ratio;
             // The hair sways in the stance, by half a logical pixel at most to either side.
@@ -318,11 +318,13 @@ public class GardenRendererTests : PlaywrightTest
                 var over = await GardenView.PixelsAsync(page, onChest.Left, onChest.Top, onChest.Width, onChest.Height);
                 over.Pixels.Length.ShouldBeGreaterThan(100, why);
                 over.Pixels.Count(pixel => GardenView.IsSkin(pixel, 24)).ShouldBe(0, $"{why}: the chest zone shows skin on the screen");
-                over.Pixels.Count(pixel => !GardenView.Near(pixel, GardenView.Hair, 3)).ShouldBe(0, $"{why}: the chest zone shows something other than her hair");
+                // Her hair has three tones of dark hair: exactly those, and where two locks meet a colour between two of them.
+                over.Pixels.Count(pixel => !GardenView.IsHair(pixel, 3)).ShouldBe(0, $"{why}: the chest zone shows something other than her hair");
+                over.Pixels.Count(pixel => GardenView.Near(pixel, GardenView.Hair, 3)).ShouldBeGreaterThan(over.Pixels.Length / 3, $"{why}: most of what covers her chest is the dark hair itself");
             }
 
             // The review sheet: the figure, cut out of what the renderer drew, in the cell of its facing.
-            var cell = GardenView.OnScreen(camera, feet, -20, -55, 20, 3);
+            var cell = GardenView.OnScreen(camera, feet, -20.5, -57.5, 20.5, 2);
             await page.EvaluateAsync(
                 """
                 cut => new Promise(resolve => requestAnimationFrame(() => {
@@ -411,7 +413,7 @@ public class GardenRendererTests : PlaywrightTest
                     var chest = PixelsOf(GardenView.ZoneBoundsInEveryFrameOfTheWalk(rig, RigStructure.Chest, facing), 1).ToList();
                     chest.Count.ShouldBeGreaterThan(60, why);
                     chest.Count(pixel => GardenView.IsSkin(pixel, 24)).ShouldBe(0, $"{why}: the chest zone shows skin in mid-step");
-                    chest.Count(pixel => !GardenView.Near(pixel, GardenView.Hair, 3)).ShouldBe(0, $"{why}: the chest zone shows something other than her hair in mid-step");
+                    chest.Count(pixel => !GardenView.IsHair(pixel, 3)).ShouldBe(0, $"{why}: the chest zone shows something other than her hair in mid-step");
                 }
 
                 figure.Pixels.Count(pixel => GardenView.IsSkin(pixel, 3)).ShouldBeGreaterThan(100, $"{why}: the figure is in the box read");

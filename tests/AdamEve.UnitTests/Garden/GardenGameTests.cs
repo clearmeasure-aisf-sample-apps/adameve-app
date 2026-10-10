@@ -370,7 +370,7 @@ public class GardenGameTests
             var parts = listed.Select(id => rig.Parts[id - atlas.PartId(index, 0)]).ToList();
 
             parts.Select(part => part.Id).ShouldBe(rig.Parts.Where(part => part.Front is not null && part.WornWith(Covering.None)).OrderBy(part => part.Front!.Depth).Select(part => part.Id));
-            parts.ShouldAllBe(part => RigStructure.AllowedColours(PartRole.Body).Contains(part.Colour) || part.Colour == RigStructure.Hair);
+            parts.ShouldAllBe(part => RigStructure.AllowedColours(PartRole.Body).Contains(part.Colour) || RigStructure.AllowedColours(PartRole.Hair).Contains(part.Colour) || (part.Colour == RigStructure.Mouth && part.Id.StartsWith(RigStructure.MouthPrefix, StringComparison.Ordinal)));
         }
 
         entries.ShouldContain(entry => entry.AtlasId == atlas.SpriteId(SceneryKind.TreeOfLife));

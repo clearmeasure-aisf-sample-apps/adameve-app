@@ -272,6 +272,32 @@ internal static class GardenView
     public static bool IsSkin(int pixel, int within) => Near(pixel, Skin, within) || Near(pixel, SkinInShade, within);
 
     /// <summary>
+    /// Whether a pixel has a colour of the hair: one of the tones the rule allows hair (<see cref="RigStructure.AllowedColours"/>:
+    /// the hair, a lock that catches the light, the sheen), or, where two locks meet and the renderer smooths
+    /// the edge between them, a colour between two of those tones. Nothing else: no skin, and no mix with skin.
+    /// </summary>
+    public static bool IsHair(int pixel, int within)
+    {
+        var tones = RigStructure.AllowedColours(PartRole.Hair);
+        foreach (var from in tones)
+        {
+            foreach (var to in tones)
+            {
+                for (var step = 0; step <= 32; step++)
+                {
+                    int Mixed(int shift) => (int)Math.Round((((from >> shift) & 255) * (32 - step) / 32.0) + (((to >> shift) & 255) * step / 32.0));
+                    if (Near(pixel, (Mixed(16) << 16) | (Mixed(8) << 8) | Mixed(0), within))
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Asks the renderer what it drew in its last frame and where its own camera puts points of the garden on the
     /// screen (each point: x on the ground, height, y on the ground).
     /// </summary>
@@ -399,7 +425,11 @@ internal static class GardenView
         return (box, answer.GetProperty("scale").GetDouble(), answer.GetProperty("moving").GetBoolean(), answer.GetProperty("facing").GetString() ?? string.Empty);
     }
 
-    /// <summary>The bounds of every part of a figure in the figure's own flat space, in a frame of the idle stance.</summary>
+    /// <summary>
+    /// The bounds of every part of a figure in the figure's own flat space, in a frame of the idle stance: of the
+    /// outline of each part as it is drawn (an ellipse that is turned reaches less far than the box it lies in, and
+    /// so does a rounded corner).
+    /// </summary>
     public static (double Left, double Top, double Right, double Bottom) FigureBounds(Rig rig, Facing facing)
     {
         var pose = new RigPose(rig);
@@ -408,15 +438,21 @@ internal static class GardenView
         foreach (var placed in pose.Parts)
         {
             var part = rig.Parts[placed.PartIndex];
-            foreach (var (x, y) in new[] { (-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5) })
-            {
-                var flatX = placed.Transform.ApplyX(x * part.Width, y * part.Height);
-                var flatY = placed.Transform.ApplyY(x * part.Width, y * part.Height);
-                left = Math.Min(left, flatX);
-                right = Math.Max(right, flatX);
-                top = Math.Min(top, flatY);
-                bottom = Math.Max(bottom, flatY);
-            }
+            var transform = placed.Transform;
+            double halfWidth = part.Width / 2, halfHeight = part.Height / 2;
+            // How far the outline reaches from its middle, across and up and down. A rounded rectangle is its
+            // inner rectangle grown by the radius of its corners; a plain one has no radius.
+            var round = part.Shape == PartShape.Rounded ? part.Round : 0;
+            var reachX = part.Shape == PartShape.Ellipse
+                ? Math.Sqrt((transform.A * halfWidth * transform.A * halfWidth) + (transform.C * halfHeight * transform.C * halfHeight))
+                : (Math.Abs(transform.A) * (halfWidth - round)) + (Math.Abs(transform.C) * (halfHeight - round)) + round;
+            var reachY = part.Shape == PartShape.Ellipse
+                ? Math.Sqrt((transform.B * halfWidth * transform.B * halfWidth) + (transform.D * halfHeight * transform.D * halfHeight))
+                : (Math.Abs(transform.B) * (halfWidth - round)) + (Math.Abs(transform.D) * (halfHeight - round)) + round;
+            left = Math.Min(left, transform.E - reachX);
+            right = Math.Max(right, transform.E + reachX);
+            top = Math.Min(top, transform.F - reachY);
+            bottom = Math.Max(bottom, transform.F + reachY);
         }
 
         return (left, top, right, bottom);
