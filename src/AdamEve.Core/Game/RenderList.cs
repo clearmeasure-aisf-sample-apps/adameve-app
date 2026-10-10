@@ -80,6 +80,9 @@ public static class RenderList
     /// </summary>
     public const int FigureDepthHeight = 23;
 
+    /// <summary>Header: how many things of the garden (<see cref="GardenThings"/>) the part after the entries holds.</summary>
+    public const int ThingCount = 24;
+
     /// <summary>The length of the header.</summary>
     public const int HeaderLength = 32;
 
@@ -101,6 +104,29 @@ public static class RenderList
     /// <summary>The most entries a frame may hold.</summary>
     public const int Capacity = 480;
 
+    /// <summary>
+    /// Where the things of the garden begin: after the room of the entries. Each takes the room of one entry.
+    /// </summary>
+    public const int Things = HeaderLength + (Capacity * EntryLength);
+
+    /// <summary>The most things a frame may hold.</summary>
+    public const int ThingCapacity = 64;
+
+    /// <summary>Thing: the number of its picture (<see cref="ThingArt.Images"/>).</summary>
+    public const int ThingArt = 0;
+
+    /// <summary>Thing: the logical pixel of the map under its foot, x.</summary>
+    public const int ThingX = 1;
+
+    /// <summary>Thing: the logical pixel of the map under its foot, y.</summary>
+    public const int ThingY = 2;
+
+    /// <summary>Thing: 1 when it looks east, as its picture is drawn; -1 when it looks west.</summary>
+    public const int ThingLooks = 3;
+
+    /// <summary>Thing: how far a step lifts it off the ground, in logical pixels.</summary>
+    public const int ThingLift = 4;
+
     /// <summary>The length of the whole block.</summary>
-    public const int Length = HeaderLength + (Capacity * EntryLength);
+    public const int Length = Things + (ThingCapacity * EntryLength);
 }

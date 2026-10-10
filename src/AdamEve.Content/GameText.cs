@@ -5,7 +5,7 @@ using AdamEve.Core.Story;
 namespace AdamEve.Content;
 
 /// <summary>
-/// Every label the game itself wrote, for the title, the days of creation, the reader and the garden. Game-written text: Jeffrey Palermo reviews each string
+/// Every label and line of narration the game itself wrote, for the title, the days of creation, the reader, the garden and the man's path in it. Game-written text: Jeffrey Palermo reviews each string
 /// before it ships, and <c>content/README.md</c> lists them all for that review (a unit test keeps the list whole).
 /// None of it is Scripture.
 /// </summary>
@@ -101,6 +101,36 @@ public static class GameText
     /// <summary>What a player reads when the saved game cannot be read (design, section 7.3).</summary>
     public const string SaveUnreadable = "Your saved game could not be read. Start again?";
 
+    /// <summary>The speaker label of a Scripture card from Genesis 2:4 on which the LORD God speaks (design, section 1).</summary>
+    public const string SpeakerLordGod = "The LORD God";
+
+    /// <summary>What the game calls the man until Genesis 2:19 is shown (design, decision D3). From then on it is <see cref="CharacterAdam"/>.</summary>
+    public const string TheMan = "The man";
+
+    /// <summary>Narration, beat B9: what the player is to do.</summary>
+    public const string TaskWalkToTheRiver = "Walk to the river.";
+
+    /// <summary>Narration, beat B10: the first task (design, section 3.4: "carry water from a river to saplings").</summary>
+    public const string TaskWaterTheSapling = "Carry water from the river to the sapling.";
+
+    /// <summary>Narration, beat B10: the second task (design, section 3.4: "clear fallen branches").</summary>
+    public const string TaskClearTheBranch = "Clear the fallen branch.";
+
+    /// <summary>Narration, beat B13: what the player is to do with the animal that was brought.</summary>
+    public const string NamingPrompt = "Choose a name for this kind of animal.";
+
+    /// <summary>Beat B13: the button beside a kind-name that shows its meaning (design, section 3.5: the "?" button).</summary>
+    public const string MeaningButton = "?";
+
+    /// <summary>Beat B13: what a screen reader reads for the "?" button.</summary>
+    public const string MeaningLabel = "Meaning";
+
+    /// <summary>The button and the heading of the garden journal (design, section 3.4).</summary>
+    public const string Journal = "Journal";
+
+    /// <summary>Every line of narration: plain sentences a player reads outside a Scripture card. A test holds each to the reading grade of the design.</summary>
+    public static IReadOnlyList<string> Narration { get; } = [TaskWalkToTheRiver, TaskWaterTheSapling, TaskClearTheBranch, NamingPrompt, SaveUnreadable];
+
     /// <summary>The name of a region of the garden, for the status line; empty for a place without a name.</summary>
     /// <param name="regionId">The id of the region on the map.</param>
     public static string RegionName(string? regionId) => regionId switch
@@ -120,6 +150,21 @@ public static class GameText
     public static string SpeakerName(StorySpeaker speaker) => speaker switch
     {
         StorySpeaker.God => SpeakerGod,
+        StorySpeaker.LordGod => SpeakerLordGod,
+        _ => string.Empty,
+    };
+
+    /// <summary>What the game calls the man (design, decision D3).</summary>
+    /// <param name="man">The label the story holds.</param>
+    public static string ManName(ManLabel man) => man == ManLabel.Adam ? CharacterAdam : TheMan;
+
+    /// <summary>The line of narration that says what the player is to do.</summary>
+    /// <param name="task">The task.</param>
+    public static string TaskLine(StoryTask task) => task switch
+    {
+        StoryTask.WalkToTheRiver => TaskWalkToTheRiver,
+        StoryTask.WaterTheSapling => TaskWaterTheSapling,
+        StoryTask.ClearTheBranch => TaskClearTheBranch,
         _ => string.Empty,
     };
 
