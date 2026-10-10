@@ -33,8 +33,17 @@ public static class RigStructure
     /// <summary>The prefix of the id of every hair part.</summary>
     public const string HairPrefix = "hair-";
 
+    /// <summary>The bone the hair hangs on.</summary>
+    public const string Head = "head";
+
+    /// <summary>
+    /// The bone on which hair that moves hangs: a bone of the head itself, so that the hair is still bound to the
+    /// head and goes where it goes.
+    /// </summary>
+    public const string HairBone = "hair";
+
     /// <summary>The outlines a part may have: plain shapes only.</summary>
-    public static IReadOnlyList<PartShape> AllowedShapes { get; } = [PartShape.Ellipse, PartShape.Rectangle];
+    public static IReadOnlyList<PartShape> AllowedShapes { get; } = [PartShape.Ellipse, PartShape.Rectangle, PartShape.Rounded];
 
     /// <summary>The kinds of part a rig may have.</summary>
     public static IReadOnlyList<PartRole> AllowedRoles { get; } = [PartRole.Body, PartRole.Hair, PartRole.Apron, PartRole.Coat, PartRole.Detail];
@@ -108,9 +117,21 @@ public static class RigStructure
                 found.Add($"The part \"{part.Id}\" of the rig {rig.Id} has a colour that is not a colour of its kind.");
             }
 
-            if (part.Role is PartRole.Hair or PartRole.Detail && part.Bone != "head")
+            // Hair is bound to the head: to its bone, or to the bone of the head on which moving hair hangs. An eye
+            // is on the head itself.
+            var onTheHead = part.Bone == Head
+                || (part.Role == PartRole.Hair && part.Bone == HairBone && rig.Bones.Any(bone => bone.Id == HairBone && bone.Parent == Head));
+            if (part.Role is PartRole.Hair or PartRole.Detail && !onTheHead)
             {
                 found.Add($"The part \"{part.Id}\" of the rig {rig.Id} is hair or an eye and is not bound to the head.");
+            }
+
+            var rounded = part.Shape == PartShape.Rounded
+                ? part.Round > 0 && part.Round <= Math.Min(part.Width, part.Height) / 2
+                : part.Round == 0;
+            if (!rounded)
+            {
+                found.Add($"The part \"{part.Id}\" of the rig {rig.Id} has corners rounded by a radius its shape does not have.");
             }
 
             var worn = part.Role switch

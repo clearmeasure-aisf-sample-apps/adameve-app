@@ -38,16 +38,17 @@ export async function openPage() {
     return { root, canvas, interop: exports.AdamEve.Client.Game.GameInterop };
 }
 
-// The atlas as the game lists it: for each image its flat shapes.
+// The atlas as the game lists it: for each image its flat shapes (kind: 0 an ellipse, 1 a rectangle, 2 a rectangle
+// with corners rounded by `round`).
 export function readAtlas(numbers) {
     const images = [];
     let at = 1;
     for (let image = 0; image < numbers[0]; image++) {
         const shapes = [];
         const count = numbers[at++];
-        for (let shape = 0; shape < count; shape++, at += 6) {
-            const [kind, x, y, width, height, colour] = numbers.slice(at, at + 6);
-            shapes.push({ kind, x, y, width, height, colour });
+        for (let shape = 0; shape < count; shape++, at += 7) {
+            const [kind, x, y, width, height, colour, round] = numbers.slice(at, at + 7);
+            shapes.push({ kind, x, y, width, height, colour, round });
         }
         images.push({ shapes });
     }
@@ -56,11 +57,29 @@ export function readAtlas(numbers) {
 
 // Starts the shared part on a page. `projection` is what the renderer draws with (PERSPECTIVE or FLAT): the game
 // composes the frame, culls and reads a tap for it.
+// A number in [0, 1) from two whole numbers: the same garden every time, with no chance in it.
+export function scatter(x, y) {
+    let n = (Math.imul(x, 374761393) + Math.imul(y, 668265263)) | 0;
+    n = Math.imul(n ^ (n >>> 13), 1274126177);
+    return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+}
+
+// A number in [0, 1) that changes smoothly from place to place: the ground shades by it, so no tile shows its edge.
+export function drift(x, y) {
+    const column = Math.floor(x), row = Math.floor(y);
+    let u = x - column, v = y - row;
+    u = u * u * (3 - 2 * u);
+    v = v * v * (3 - 2 * v);
+    const top = scatter(column, row) + (scatter(column + 1, row) - scatter(column, row)) * u;
+    const bottom = scatter(column, row + 1) + (scatter(column + 1, row + 1) - scatter(column, row + 1)) * u;
+    return top + (bottom - top) * v;
+}
+
 export function createShell({ root, canvas, interop, listView, inputView, verdicts, projection }) {
     const shell = {
         root, canvas, projection,
         viewWidth: 1, viewHeight: 1, ratio: 1, resized: true,
-        held: 0, pressed: 0, action: 0, menu: 0, tapped: 0, tapX: 0, tapY: 0,
+        held: 0, pressed: 0, action: 0, menu: 0, tapped: 0, tapX: 0, tapY: 0, still: 0,
         input: new Float64Array(inputView.length),
         listCopy: new Float64Array(listView.length),
         published: {},
@@ -96,6 +115,7 @@ export function createShell({ root, canvas, interop, listView, inputView, verdic
         input[8] = shell.viewHeight;
         input[9] = shell.ratio;
         input[10] = shell.projection;
+        input[11] = shell.still;
         inputView.set(input);
         shell.pressed = shell.action = shell.menu = shell.tapped = 0;
 
@@ -203,6 +223,11 @@ export function createShell({ root, canvas, interop, listView, inputView, verdic
         observer.observe(canvas);
         shell.listeners.push(() => observer.disconnect());
     }
+
+    // The player's setting "reduce motion": the figures then stand still while they stand (the game is told so).
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+    shell.still = reduced.matches ? 1 : 0;
+    shell.listen(reduced, "change", () => { shell.still = reduced.matches ? 1 : 0; });
 
     const touch = navigator.maxTouchPoints > 0 || "ontouchstart" in window || window.matchMedia("(pointer: coarse)").matches;
     root.dataset.touch = touch ? "true" : "false";

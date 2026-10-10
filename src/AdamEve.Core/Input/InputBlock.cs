@@ -46,6 +46,12 @@ public static class InputBlock
     /// </summary>
     public const int Projection = 10;
 
+    /// <summary>
+    /// 1 when the player asks for reduced motion (<c>prefers-reduced-motion</c>): a figure that stands does not
+    /// breathe and its hair does not sway. A figure that walks still walks: that motion is the player's own.
+    /// </summary>
+    public const int Still = 11;
+
     /// <summary>The projection of the perspective camera (<see cref="World.PerspectiveCamera"/>).</summary>
     public const int Perspective = 0;
 

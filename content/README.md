@@ -71,23 +71,25 @@ Not in the glossary yet, because the design's list gives them no definition: *on
 The days of creation add no narration: every word a player reads there is a Scripture card (Genesis 1:1 to 2:3, one
 verse each, with its reference), the label "God" on the cards on which he speaks, and the three controls above.
 Which verses a day shows, where the player's one gesture of a day falls and on which cards God speaks are
-references in `src/AdamEve.Core/Story/CreationStory.cs`, never text. The picture of each day is placeholder art
-made by code (`CreationPicture`): flat ellipses and rectangles, no image file. God is never drawn as a figure: his
+references in `src/AdamEve.Core/Story/CreationStory.cs`, never text. The picture of each day is art
+made by code (`CreationPicture`, `CreationArt`): outlines and gradients from numbers, no image file, and no word. God is never drawn as a figure: his
 presence is a light, shown while his voice speaks. The two figures of light of Genesis 1:26 to 1:28 are the rigs
 below, in one pale colour, far away, judged by the same modesty checks.
 
 ## The garden (slice S2)
 
-Not text, and not generated: written by hand as data, and drawn by the game as flat shapes.
+Not text, and not generated: written by hand as data, and drawn by the game. What is planted where (the kind of
+each tree, the shrubs, rocks and reeds, the drifts of flowers) is not a file: `AdamEve.Core.World.GardenScenery`
+makes it from the map and a fixed seed.
 
 | File | What |
 |---|---|
 | `maps/garden.tmj` | The map, 64 by 48 tiles, as Tiled JSON: the layer `ground`, the regions and the starting tiles. Three regions are open: the Central Glade, the Spring of Eden and the Pison Meadows; everything else is thicket |
-| `rigs/adam.rig.json`, `rigs/woman.rig.json` | The placeholder rigs: bones, parts (one ellipse or rectangle each, in one flat colour), the concealment zones, the woman's long hair that covers her chest, and a concealment record for every zone, view and covering variant (design, sections 5.3 and 5.6, as decision D18 amended them) |
+| `rigs/adam.rig.json`, `rigs/woman.rig.json` | The rigs: bones, parts (one ellipse, rectangle or rectangle with rounded corners each, in one flat colour), the concealment zones, the woman's long hair that covers her chest, and a concealment record for every zone, view and covering variant (design, sections 5.3 and 5.6, as decision D18 amended them) |
 | `rigs/person.anim.json` | The keyframes of `idle` and `walk`, for both rigs |
 
-The placeholder figures are abstract by construction and never anatomical: the body of each is the same seven
+The figures are abstract by construction and never anatomical: the body of each is the same seven
 plain blocks, the pelvic region is the body's own smooth shape with nothing drawn in it, and the woman's long hair
 covers her chest. They carry no foliage (decision D18). Unit tests (`RigStructureTests`, `ConcealmentTests`) hold a
-rig to the lists of what it may contain and compose every frame of every animation in all eight facings. They are placeholders until the asset pipeline of slice S2b exists; no image, sound
+rig to the lists of what it may contain and compose every frame of every animation in all eight facings. They are code-drawn until the asset pipeline of slice S2b exists; no image, sound
 or font file is part of them.

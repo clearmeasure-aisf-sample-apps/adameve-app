@@ -102,7 +102,8 @@ public static class RigLoader
             In("front", part.Front),
             In("side", part.Side),
             In("back", part.Back),
-            part.TurnX);
+            part.TurnX,
+            part.Round);
     }
 
     private static ConcealmentZone Zone(ZoneFile zone)
@@ -201,6 +202,8 @@ internal sealed class PartFile
     public List<string>? Hide { get; set; }
 
     public double TurnX { get; set; }
+
+    public double Round { get; set; }
 }
 
 internal sealed class ZoneDepthFile

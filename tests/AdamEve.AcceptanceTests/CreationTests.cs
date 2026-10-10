@@ -403,7 +403,9 @@ public class CreationTests : PlaywrightTest
 
         // With or without motion the same card and the same picture are there.
         await Expect(page.GetByTestId("scripture-card")).ToHaveAttributeAsync("data-ref", "1:3");
-        await Expect(page.Locator("[data-layer='Light'] ellipse")).ToHaveCountAsync(1);
+        (await page.Locator("[data-layer='Light'] path").CountAsync()).ShouldBeGreaterThan(1);
+        (await page.Locator("[data-layer='Light'] radialGradient").CountAsync()).ShouldBeGreaterThan(1);
+        (await page.Locator("#creation svg image, #creation svg [href], #creation img").CountAsync()).ShouldBe(0, "the picture is shapes made of numbers: no image");
         await ExpectACleanRunAsync(guarded);
     }
 

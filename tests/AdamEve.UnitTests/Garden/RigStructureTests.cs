@@ -37,7 +37,53 @@ public class RigStructureTests
     public void AllowedShapes_TheList_ShouldBeEveryShapeThereIsSoThatANewShapeFailsHere()
     {
         Enum.GetValues<PartShape>().ShouldBe(RigStructure.AllowedShapes, ignoreOrder: true);
-        Enum.GetNames<PartShape>().ShouldBe(["Ellipse", "Rectangle"]);
+        // "Rounded" was added on 2026-10-10 by a person's decision recorded in the rule (CLAUDE.md, "Modesty"): a
+        // rectangle with rounded corners, for limbs and locks with round ends. It is a plain convex outline.
+        Enum.GetNames<PartShape>().ShouldBe(["Ellipse", "Rectangle", "Rounded"]);
+    }
+
+    [Test]
+    public void Violations_ARoundedPartWithoutARadiusOrWithOneBeyondHalfItsShorterSideOrAPlainShapeWithARadius_ShouldNameIt()
+    {
+        var adam = StubMap.Shipped().Adam;
+        RigPart Arm(Func<RigPart, RigPart> change) => change(adam.Parts.Single(part => part.Id == "armR"));
+        var none = StubMap.With(adam, parts: adam.Parts.Select(part => part.Id == "armR" ? Arm(arm => arm with { Round = 0 }) : part));
+        var beyond = StubMap.With(adam, parts: adam.Parts.Select(part => part.Id == "armR" ? Arm(arm => arm with { Round = (arm.Width / 2) + 0.01 }) : part));
+        var plain = StubMap.With(adam, parts: adam.Parts.Select(part => part.Id == "head" ? part with { Round = 2 } : part));
+
+        adam.Parts.Single(part => part.Id == "armR").Shape.ShouldBe(PartShape.Rounded);
+        RigStructure.Violations(none).ShouldHaveSingleItem().ShouldContain("\"armR\"");
+        RigStructure.Violations(beyond).ShouldHaveSingleItem().ShouldContain("\"armR\"");
+        RigStructure.Violations(plain).ShouldHaveSingleItem().ShouldContain("\"head\"");
+    }
+
+    [Test]
+    public void Violations_HairOnABoneThatIsNotTheHeadOrTheHairBoneOfTheHead_ShouldNameIt()
+    {
+        var woman = StubMap.Shipped().Woman;
+        var fall = woman.Parts.Single(part => part.Id == "hair-fall");
+        var onTheTorso = StubMap.With(woman, parts: woman.Parts.Select(part => part.Id == "hair-fall" ? part with { Bone = "torso" } : part));
+        var loose = new Rig(woman.Id, [.. woman.Bones.Select(bone => bone.Id == RigStructure.HairBone ? bone with { Parent = "torso" } : bone)], woman.Parts, woman.Zones, woman.Concealment);
+        var eye = StubMap.With(woman, parts: woman.Parts.Select(part => part.Id == "eyeL" ? part with { Bone = RigStructure.HairBone } : part));
+
+        fall.Bone.ShouldBe(RigStructure.HairBone);
+        woman.Bones.Single(bone => bone.Id == RigStructure.HairBone).Parent.ShouldBe(RigStructure.Head);
+        RigStructure.Violations(onTheTorso).ShouldHaveSingleItem().ShouldContain("\"hair-fall\"");
+        RigStructure.Violations(loose).ShouldNotBeEmpty();
+        RigStructure.Violations(loose).ShouldAllBe(violation => violation.Contains("not bound to the head", StringComparison.Ordinal));
+        RigStructure.Violations(eye).ShouldHaveSingleItem().ShouldContain("\"eyeL\"");
+    }
+
+    [Test]
+    public void Parts_TheShippedRigs_ShouldKeepEveryPartThatCoversTheChestOnTheHeadItselfAndEveryRoundedPartOutOfTheZonesButTheBody()
+    {
+        // The hair that moves on its own bone (the fall behind the back, the crown) covers nothing that has to be
+        // covered: what covers the woman's chest is bound to the head itself and moves only with it.
+        var woman = StubMap.Shipped().Woman;
+
+        woman.Parts.Where(part => part.Id.StartsWith("hair-front", StringComparison.Ordinal)).ShouldAllBe(part => part.Bone == RigStructure.Head);
+        woman.Parts.Where(part => part.Bone == RigStructure.HairBone).Select(part => part.Id).ShouldBe(["hair-fall", "hair-crown"]);
+        woman.Parts.Where(part => part.Bone == RigStructure.HairBone).ShouldAllBe(part => part.Role == PartRole.Hair);
     }
 
     [Test]

@@ -1,5 +1,3 @@
-using AdamEve.Core.Rigs;
-
 namespace AdamEve.Core.Story;
 
 /// <summary>
@@ -64,8 +62,8 @@ public enum SceneLayer
 }
 
 /// <summary>
-/// The picture of the days of creation, as placeholder art made by code: which layers a day shows at each of its
-/// cards, and the flat shapes of each layer. A day's picture shows nothing of the day before the player's gesture,
+/// The picture of the days of creation, as art made by code: which layers a day shows at each of its cards, and
+/// the shapes of each layer. A day's picture shows nothing of the day before the player's gesture,
 /// and after it only what the verses shown so far tell.
 /// </summary>
 public static class CreationPicture
@@ -117,74 +115,10 @@ public static class CreationPicture
         return [.. (speaks ? [.. layers, SceneLayer.Presence] : layers).Order()];
     }
 
-    /// <summary>The flat shapes of a layer, the farthest first, in the units of the picture. The figures have none: they are rigs.</summary>
+    /// <summary>
+    /// The shapes of a layer, the farthest first, in the units of the picture: outlines and fills made by code
+    /// (<see cref="PictureShape"/>). The figures have none: they are rigs.
+    /// </summary>
     /// <param name="layer">The layer.</param>
-    public static IReadOnlyList<FlatShape> ShapesOf(SceneLayer layer) => layer switch
-    {
-        SceneLayer.Darkness => [new(PartShape.Rectangle, 160, 100, 320, 200, 0x0B0E1A)],
-        SceneLayer.Waters => [new(PartShape.Rectangle, 160, 100, 320, 200, 0x2E6C9E)],
-        SceneLayer.Deep => [new(PartShape.Rectangle, 160, 165, 320, 70, 0x111C36)],
-        SceneLayer.Firmament => [new(PartShape.Rectangle, 160, 90, 320, 100, 0xBFE3F5)],
-        SceneLayer.Light => [new(PartShape.Ellipse, 160, 95, 280, 170, 0xFFF4C8)],
-        SceneLayer.Day => [new(PartShape.Rectangle, 80, 100, 160, 200, 0xFFF4C8)],
-        SceneLayer.Stars =>
-        [
-            new(PartShape.Ellipse, 30, 52, 4, 4, 0xFFFFFF),
-            new(PartShape.Ellipse, 112, 50, 4, 4, 0xFFFFFF),
-            new(PartShape.Ellipse, 150, 72, 4, 4, 0xFFFFFF),
-            new(PartShape.Ellipse, 200, 48, 4, 4, 0xFFFFFF),
-            new(PartShape.Ellipse, 292, 56, 4, 4, 0xFFFFFF),
-            new(PartShape.Ellipse, 232, 104, 4, 4, 0xFFFFFF),
-        ],
-        SceneLayer.Sun => [new(PartShape.Ellipse, 255, 72, 34, 34, 0xF6C445)],
-        SceneLayer.Moon => [new(PartShape.Ellipse, 70, 64, 22, 22, 0xEEF1F4)],
-        SceneLayer.Land => [new(PartShape.Ellipse, 105, 178, 250, 96, 0xB08A55)],
-        SceneLayer.Grass =>
-        [
-            new(PartShape.Ellipse, 105, 172, 228, 70, 0x7DB46C),
-            new(PartShape.Ellipse, 40, 150, 10, 8, 0x57A65B),
-            new(PartShape.Ellipse, 150, 158, 10, 8, 0x57A65B),
-        ],
-        SceneLayer.Trees =>
-        [
-            new(PartShape.Rectangle, 58, 140, 6, 18, 0x7A5A3A),
-            new(PartShape.Ellipse, 58, 124, 30, 26, 0x3E8E4E),
-            new(PartShape.Rectangle, 118, 136, 6, 18, 0x7A5A3A),
-            new(PartShape.Ellipse, 118, 120, 30, 26, 0x4E9A4A),
-            new(PartShape.Rectangle, 22, 150, 5, 14, 0x7A5A3A),
-            new(PartShape.Ellipse, 22, 138, 22, 18, 0x3E8E4E),
-        ],
-        SceneLayer.Whales =>
-        [
-            new(PartShape.Ellipse, 268, 186, 56, 20, 0x3B4F6B),
-            new(PartShape.Ellipse, 298, 180, 10, 16, 0x3B4F6B),
-        ],
-        SceneLayer.Fish =>
-        [
-            new(PartShape.Ellipse, 252, 162, 14, 6, 0xE8963A),
-            new(PartShape.Ellipse, 284, 168, 14, 6, 0xE8963A),
-            new(PartShape.Ellipse, 304, 156, 12, 5, 0xE8963A),
-        ],
-        SceneLayer.Birds =>
-        [
-            new(PartShape.Ellipse, 180, 62, 12, 4, 0x3A3A3A),
-            new(PartShape.Ellipse, 206, 54, 12, 4, 0x3A3A3A),
-            new(PartShape.Ellipse, 226, 68, 12, 4, 0x3A3A3A),
-        ],
-        SceneLayer.Animals =>
-        [
-            new(PartShape.Ellipse, 70, 166, 30, 18, 0xB9A27C),
-            new(PartShape.Ellipse, 86, 157, 12, 12, 0xB9A27C),
-            new(PartShape.Ellipse, 142, 172, 26, 16, 0x9A9A9A),
-            new(PartShape.Ellipse, 128, 165, 11, 11, 0x9A9A9A),
-            new(PartShape.Ellipse, 104, 154, 16, 10, 0xD8C7A3),
-        ],
-        SceneLayer.Presence =>
-        [
-            new(PartShape.Ellipse, 160, 34, 170, 64, 0xFFD98A),
-            new(PartShape.Ellipse, 160, 34, 110, 42, 0xFFE9B0),
-            new(PartShape.Ellipse, 160, 34, 56, 22, 0xFFF6D8),
-        ],
-        _ => [],
-    };
+    public static IReadOnlyList<PictureShape> ShapesOf(SceneLayer layer) => CreationArt.Of(layer);
 }
