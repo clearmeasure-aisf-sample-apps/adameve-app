@@ -13,9 +13,8 @@ public sealed class AtlasCatalog
     private readonly List<IReadOnlyList<FlatShape>> images = [];
     private readonly int[] rigOffsets;
     private readonly int[] spriteIds = new int[TileKinds.Count];
-    private readonly int foliageOffset;
 
-    /// <summary>Lists the images of the rigs, of the default foliage cluster and of the trees.</summary>
+    /// <summary>Lists the images of the rigs and of the trees.</summary>
     /// <param name="rigs">The rigs.</param>
     public AtlasCatalog(IReadOnlyList<Rig> rigs)
     {
@@ -28,12 +27,6 @@ public sealed class AtlasCatalog
             {
                 images.Add([new FlatShape(part.Shape, 0, 0, part.Width, part.Height, part.Colour)]);
             }
-        }
-
-        foliageOffset = images.Count;
-        foreach (var shape in DefaultFoliage.Shapes)
-        {
-            images.Add([shape with { X = 0, Y = 0 }]);
         }
 
         for (var kind = 0; kind < TileKinds.Count; kind++)
@@ -58,10 +51,6 @@ public sealed class AtlasCatalog
     /// <param name="rigIndex">The index of the rig.</param>
     /// <param name="partIndex">The index of the part in its rig.</param>
     public int PartId(int rigIndex, int partIndex) => rigOffsets[rigIndex] + partIndex;
-
-    /// <summary>The id of the image of a shape of the default foliage cluster.</summary>
-    /// <param name="shapeIndex">The index of the shape in <see cref="DefaultFoliage.Shapes"/>.</param>
-    public int DefaultFoliageId(int shapeIndex) => foliageOffset + shapeIndex;
 
     /// <summary>The id of the image of a tree; -1 for a kind that is not a tree.</summary>
     /// <param name="kind">The tile kind.</param>

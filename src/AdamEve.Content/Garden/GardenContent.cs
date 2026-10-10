@@ -28,8 +28,9 @@ public sealed class GardenContent
 
     /// <summary>
     /// Loads and checks the garden: the map has a starting tile for each character; both rigs have the pelvic zone
-    /// and the woman's the chest zone as well (design, section 5.3); the animations are "idle" and "walk", and move
-    /// only bones both rigs have.
+    /// and the woman's the chest zone as well (design, section 5.3); both rigs hold only what the amended modesty
+    /// rule allows (<see cref="RigStructure"/>); the animations are "idle" and "walk", and move only bones both
+    /// rigs have.
     /// </summary>
     /// <param name="map">The bytes of <c>content/maps/garden.tmj</c>.</param>
     /// <param name="adam">The bytes of <c>content/rigs/adam.rig.json</c>.</param>
@@ -55,6 +56,16 @@ public sealed class GardenContent
         if (garden.Adam.ZoneIndex("pelvis") < 0 || garden.Woman.ZoneIndex("pelvis") < 0 || garden.Woman.ZoneIndex("chest") < 0)
         {
             throw new ContentFormatException("A rig lacks a concealment zone: the pelvic zone for both, the chest zone for the woman.");
+        }
+
+        // The figures are never anatomical (design, decision D18): a rig that holds a shape, a kind, a name or a
+        // colour that is not on the lists of RigStructure does not load.
+        foreach (var rig in new[] { garden.Adam, garden.Woman })
+        {
+            if (RigStructure.Violations(rig) is { Count: > 0 } violations)
+            {
+                throw new ContentFormatException(violations[0]);
+            }
         }
 
         foreach (var name in new[] { "idle", "walk" })

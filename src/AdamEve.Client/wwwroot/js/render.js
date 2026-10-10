@@ -1,20 +1,16 @@
-// The one thin module between the game (C#) and the canvas (design, section 7.1).
+// The canvas 2D renderer: the fallback where WebGL is not to be had, where its context was lost for good, or where
+// the address of the garden asks for it (?renderer=canvas). The garden is drawn by render-three.js otherwise
+// (design, section 7.1 and decision D18).
 //
-// Each frame this module writes the input block, calls the game's Frame once, reads the render list the game
-// wrote and draws it. It decides nothing: the camera, the order of drawing and the M1 verdict are the game's.
-// Input events are collected here and never sent one by one. Nothing here asks the network.
+// It is flat: no perspective and no parallax. It asks the game for the flat projection, so the camera, the culling
+// and the tile under a tap are those of a flat picture. Each frame it draws the render list the game wrote, in the
+// order of the list. It decides nothing: the camera, the order of drawing and the M1 verdict are the game's. What
+// it shares with the other renderer (input, the frame, the game root) is shell.js. Nothing here asks the network.
 
-const HEADER = 16;
-const ENTRY = 8;
+import { HEADER, ENTRY, FLAT, createShell, openPage, readAtlas } from "./shell.js";
+
 const CHUNK_TILES = 16;
 const KEPT_CHUNKS = 6;
-const UP = 1, DOWN = 2, LEFT = 4, RIGHT = 8;
-const FACINGS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
-const KEYS = {
-    ArrowUp: UP, KeyW: UP, ArrowDown: DOWN, KeyS: DOWN,
-    ArrowLeft: LEFT, KeyA: LEFT, ArrowRight: RIGHT, KeyD: RIGHT,
-};
-const DIRECTIONS = { up: UP, down: DOWN, left: LEFT, right: RIGHT };
 
 let game = null;
 
@@ -24,19 +20,13 @@ function css(colour) {
 
 // The atlas: every image is placeholder art painted here once, from the flat shapes the game lists.
 function buildAtlas(numbers, pixelsPerUnit) {
-    const images = [];
-    let at = 1;
-    for (let image = 0; image < numbers[0]; image++) {
-        const shapes = [];
-        const count = numbers[at++];
+    return readAtlas(numbers).map(({ shapes }) => {
         let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
-        for (let shape = 0; shape < count; shape++, at += 6) {
-            const [kind, x, y, width, height, colour] = numbers.slice(at, at + 6);
-            shapes.push({ kind, x, y, width, height, colour });
-            left = Math.min(left, x - width / 2);
-            top = Math.min(top, y - height / 2);
-            right = Math.max(right, x + width / 2);
-            bottom = Math.max(bottom, y + height / 2);
+        for (const shape of shapes) {
+            left = Math.min(left, shape.x - shape.width / 2);
+            top = Math.min(top, shape.y - shape.height / 2);
+            right = Math.max(right, shape.x + shape.width / 2);
+            bottom = Math.max(bottom, shape.y + shape.height / 2);
         }
         const canvas = document.createElement("canvas");
         canvas.width = Math.max(1, Math.ceil((right - left) * pixelsPerUnit));
@@ -54,9 +44,8 @@ function buildAtlas(numbers, pixelsPerUnit) {
                 context.fill();
             }
         }
-        images.push({ canvas, left, top, width: right - left, height: bottom - top });
-    }
-    return images;
+        return { canvas, left, top, width: right - left, height: bottom - top };
+    });
 }
 
 // The ground, painted for each chunk of 16 by 16 tiles when it comes into view, at the size it is drawn at: a chunk
@@ -105,31 +94,18 @@ function chunkOf(column, row, scale) {
 }
 
 function resize() {
-    const box = game.canvas.getBoundingClientRect();
-    game.ratio = Math.min(2, window.devicePixelRatio || 1);
-    game.viewWidth = Math.max(1, box.width);
-    game.viewHeight = Math.max(1, box.height);
-    const width = Math.round(game.viewWidth * game.ratio);
-    const height = Math.round(game.viewHeight * game.ratio);
+    game.shell.measure();
+    const width = Math.round(game.shell.viewWidth * game.shell.ratio);
+    const height = Math.round(game.shell.viewHeight * game.shell.ratio);
     if (game.canvas.width !== width || game.canvas.height !== height) {
         game.canvas.width = width;
         game.canvas.height = height;
     }
-    game.resized = false;
-}
-
-function readList() {
-    // No copy where the runtime offers its view of the game's memory; otherwise one copy into a kept buffer.
-    if (typeof game.listView._unsafe_create_view === "function") {
-        return game.listView._unsafe_create_view();
-    }
-    game.listView.copyTo(game.listCopy);
-    return game.listCopy;
 }
 
 function draw(list) {
     const context = game.context;
-    const scale = list[3] * game.ratio;
+    const scale = list[3] * game.shell.ratio;
     const cameraX = list[1];
     const cameraY = list[2];
     context.setTransform(1, 0, 0, 1, 0, 0);
@@ -165,157 +141,35 @@ function draw(list) {
     }
 }
 
-// What the tests and a screen reader's status line read: on the game root, changed only when a value changes.
-function publish(list) {
-    const values = {
-        playerTile: list[4] + "," + list[5],
-        concealment: game.verdicts[list[6]] || "fail:unknown:unknown",
-        facing: FACINGS[list[7]],
-        concealmentFailures: String(list[8]),
-        moving: list[9] ? "true" : "false",
-    };
-    for (const name in values) {
-        if (game.published[name] !== values[name]) {
-            game.published[name] = values[name];
-            game.root.dataset[name] = values[name];
-        }
-    }
-}
-
 function tick(now) {
     if (!game) {
         return;
     }
     game.frameRequest = requestAnimationFrame(tick);
-    if (game.resized) {
+    if (game.shell.resized) {
         resize();
     }
-    const input = game.input;
-    input[0] = game.held;
-    input[1] = game.pressed;
-    input[2] = game.action;
-    input[3] = game.menu;
-    input[4] = game.tapped;
-    input[5] = game.tapX;
-    input[6] = game.tapY;
-    input[7] = game.viewWidth;
-    input[8] = game.viewHeight;
-    input[9] = game.ratio;
-    game.inputView.set(input);
-    game.pressed = game.action = game.menu = game.tapped = 0;
-
-    game.frame(now);
-
-    const list = readList();
+    const list = game.shell.step(now);
     draw(list);
-    publish(list);
-}
-
-function inForm(target) {
-    return target instanceof Element && target.closest("input, select, textarea, button, a, [data-game-panel]") !== null;
-}
-
-function listen(target, type, handler, options) {
-    target.addEventListener(type, handler, options);
-    game.listeners.push(() => target.removeEventListener(type, handler, options));
-}
-
-function wireInput() {
-    // The keyboard adapter: arrow keys and WASD, eight directions; Escape for the menu; Space and Enter to act.
-    listen(window, "keydown", event => {
-        const bit = KEYS[event.code];
-        if (bit && !inForm(event.target)) {
-            game.held |= bit;
-            game.pressed |= bit;
-            event.preventDefault();
-        } else if (event.code === "Escape") {
-            game.menu = 1;
-        } else if ((event.code === "Space" || event.code === "Enter") && !inForm(event.target)) {
-            game.action = 1;
-            event.preventDefault();
-        }
-    });
-    listen(window, "keyup", event => {
-        const bit = KEYS[event.code];
-        if (bit) {
-            game.held &= ~bit;
-        }
-    });
-    listen(window, "blur", () => { game.held = 0; });
-    listen(document, "visibilitychange", () => { game.held = 0; });
-
-    // The D-pad adapter: a button held walks on, a button tapped walks one tile. A browser sends pointer events,
-    // touch events or both for one touch; taking both is harmless, the bits are the same.
-    for (const button of game.root.querySelectorAll("[data-dir]")) {
-        const bit = DIRECTIONS[button.dataset.dir];
-        const press = event => {
-            game.held |= bit;
-            game.pressed |= bit;
-            event.preventDefault();
-        };
-        const release = () => { game.held &= ~bit; };
-        listen(button, "pointerdown", press);
-        listen(button, "touchstart", press, { passive: false });
-        for (const type of ["pointerup", "pointercancel", "pointerleave", "touchend", "touchcancel"]) {
-            listen(button, type, release);
-        }
-        listen(button, "contextmenu", event => event.preventDefault());
-    }
-
-    // The tap-to-move adapter (a click with a mouse is the same): where the play area was touched.
-    const tap = (event, point) => {
-        const box = game.canvas.getBoundingClientRect();
-        game.tapped = 1;
-        game.tapX = point.clientX - box.left;
-        game.tapY = point.clientY - box.top;
-        event.preventDefault();
-    };
-    listen(game.canvas, "pointerdown", event => tap(event, event));
-    listen(game.canvas, "touchstart", event => {
-        if (event.changedTouches.length > 0) {
-            tap(event, event.changedTouches[0]);
-        }
-    }, { passive: false });
+    game.shell.publish(list);
 }
 
 export async function attach(listView, inputView, tiles, ground, atlas, verdicts, mapWidth, mapHeight, tileSize, backdrop) {
     detach();
-    const root = document.getElementById("game");
-    const canvas = document.getElementById("game-canvas");
-    if (!root || !canvas) {
-        throw new Error("The page has no game root and canvas.");
-    }
-    const runtime = await globalThis.getDotnetRuntime(0);
-    const exports = await runtime.getAssemblyExports("AdamEve.Client.dll");
+    const page = await openPage();
     game = {
-        root, canvas,
-        context: canvas.getContext("2d", { alpha: false }),
-        frame: exports.AdamEve.Client.Game.GameInterop.Frame,
-        listView, inputView,
-        listCopy: new Float64Array(listView.length),
-        input: new Float64Array(inputView.length),
-        tiles, ground, verdicts, mapWidth, mapHeight, tileSize,
+        canvas: page.canvas,
+        context: page.canvas.getContext("2d", { alpha: false }),
+        shell: createShell({ ...page, listView, inputView, verdicts, projection: FLAT }),
+        tiles, ground, mapWidth, mapHeight, tileSize,
         backdrop: css(backdrop),
         atlas: buildAtlas(atlas, 3),
         chunks: new Map(),
         chunkScale: 0,
-        published: {},
-        listeners: [],
-        held: 0, pressed: 0, action: 0, menu: 0, tapped: 0, tapX: 0, tapY: 0,
-        viewWidth: 1, viewHeight: 1, ratio: 1, resized: true, frameRequest: 0,
+        frameRequest: 0,
     };
-    const touch = navigator.maxTouchPoints > 0 || "ontouchstart" in window || window.matchMedia("(pointer: coarse)").matches;
-    root.dataset.touch = touch ? "true" : "false";
-    wireInput();
-    listen(window, "resize", () => { game.resized = true; });
-    listen(window, "orientationchange", () => { game.resized = true; });
-    if (typeof ResizeObserver === "function") {
-        const observer = new ResizeObserver(() => { if (game) { game.resized = true; } });
-        observer.observe(canvas);
-        game.listeners.push(() => observer.disconnect());
-    }
     game.frameRequest = requestAnimationFrame(tick);
-    root.dataset.ready = "true";
+    page.root.dataset.ready = "true";
 }
 
 export function detach() {
@@ -323,14 +177,6 @@ export function detach() {
         return;
     }
     cancelAnimationFrame(game.frameRequest);
-    for (const remove of game.listeners) {
-        remove();
-    }
-    if (typeof game.listView.dispose === "function") {
-        game.listView.dispose();
-    }
-    if (typeof game.inputView.dispose === "function") {
-        game.inputView.dispose();
-    }
+    game.shell.dispose();
     game = null;
 }

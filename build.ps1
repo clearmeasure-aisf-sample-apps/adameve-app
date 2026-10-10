@@ -47,10 +47,10 @@ $script:site = $null
 
 # The first load of the game on a phone: 3.0 MB, measured over the brotli files the publish step writes.
 $script:payloadBudgetBytes = 3.0 * 1024 * 1024
-# The files only the Three.js renderer of the trial asks for (docs/spike-threejs.md), and only when it is chosen: they
-# are not part of the first load. deploy/verify.ps1 has the same pattern, and a full-system test proves that a visit
-# that does not choose that renderer asks for none of them.
-$script:onDemand = '^(js/render-three\.js|lib/three/.+)$'
+# The files only the garden asks for, when a player enters it: the modules that draw it and Three.js (design, section
+# 7.1 and decision D18). The title and the reader ask for none of them, so they are not part of the first load.
+# deploy/verify.ps1 has the same pattern, and a full-system test proves that the title and the reader ask for none.
+$script:onDemand = '^(js/.+|lib/three/.+)$'
 $script:title = 'Adam and woman in the garden of Eden'
 
 function Init {

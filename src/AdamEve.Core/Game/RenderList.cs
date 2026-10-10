@@ -38,17 +38,50 @@ public static class RenderList
     public const int Moving = 9;
 
     /// <summary>
-    /// Header: where the characters stand, two numbers for each character in the order of
-    /// <see cref="CharacterShift"/>: the logical pixel of the map under its feet (x, then y). A renderer with depth
-    /// stands the flat figure there; the canvas renderer does not read it.
+    /// Header: where the characters stand, two numbers for each character in the order of their numbers: the
+    /// logical pixel of the map under its feet (x, then y). A renderer with depth stands the flat figure there; the
+    /// canvas renderer does not read it.
     /// </summary>
     public const int Anchors = 10;
 
     /// <summary>How many characters the header has an anchor for.</summary>
     public const int AnchorCount = 2;
 
+    /// <summary>
+    /// Header: the projection the frame was composed for: <see cref="Input.InputBlock.Perspective"/> or
+    /// <see cref="Input.InputBlock.Flat"/>, as the renderer asked in the input block.
+    /// </summary>
+    public const int Projection = 14;
+
+    /// <summary>Header: the eye of the perspective camera, its x over the map (<see cref="World.PerspectiveCamera"/>).</summary>
+    public const int EyeX = 16;
+
+    /// <summary>Header: the eye of the perspective camera, its height above the ground.</summary>
+    public const int EyeHeight = 17;
+
+    /// <summary>Header: the eye of the perspective camera, its y over the map (south of what it looks at).</summary>
+    public const int EyeY = 18;
+
+    /// <summary>Header: how far the perspective camera looks down from the horizontal, in radians.</summary>
+    public const int Tilt = 19;
+
+    /// <summary>Header: the field of view of the perspective camera from top to bottom, in radians.</summary>
+    public const int FieldOfView = 20;
+
+    /// <summary>Header: the depth at which the haze begins.</summary>
+    public const int HazeStart = 21;
+
+    /// <summary>Header: the depth at which the haze closes; the far layer (hills and sky) stands there.</summary>
+    public const int HazeEnd = 22;
+
+    /// <summary>
+    /// Header: the height above its feet of the point whose depth a figure has for hiding and being hidden
+    /// (<see cref="World.PerspectiveCamera.FigureDepthHeight"/>).
+    /// </summary>
+    public const int FigureDepthHeight = 23;
+
     /// <summary>The length of the header.</summary>
-    public const int HeaderLength = 16;
+    public const int HeaderLength = 32;
 
     /// <summary>Entry: the id of the image in the atlas.</summary>
     public const int AtlasId = 0;
@@ -56,24 +89,14 @@ public static class RenderList
     /// <summary>Entry: the first of the six numbers of the transform (a b c d e f), in logical pixels of the map.</summary>
     public const int Transform = 1;
 
-    /// <summary>Entry: flags.</summary>
-    public const int Flags = 7;
+    /// <summary>
+    /// Entry: whose part the entry is: 0 for scenery, otherwise the number of the character (1 for the first
+    /// anchor, 2 for the second). A renderer with depth keeps the parts of one character in one plane.
+    /// </summary>
+    public const int Character = 7;
 
     /// <summary>The length of an entry.</summary>
     public const int EntryLength = 8;
-
-    /// <summary>Flag: the entry belongs to the occluder layer, drawn after every character and sprite.</summary>
-    public const int OccluderLayer = 1;
-
-    /// <summary>Flag: the entry is part of the default foliage cluster of a frame that failed closed.</summary>
-    public const int FailClosed = 2;
-
-    /// <summary>
-    /// Flags: the bits from this one on say whose part the entry is: 0 for scenery, otherwise the number of the
-    /// character (1 for the first anchor, 2 for the second). The parts of a character, its companion foliage and
-    /// its fail-closed cluster all carry it, so a renderer with depth keeps them in one plane.
-    /// </summary>
-    public const int CharacterShift = 2;
 
     /// <summary>The most entries a frame may hold.</summary>
     public const int Capacity = 480;

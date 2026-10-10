@@ -8,19 +8,19 @@ using System.Runtime.InteropServices.JavaScript;
 namespace AdamEve.Client.Game;
 
 /// <summary>
-/// The game that is playing in this tab. It carries each frame from the canvas module to the game in Core and
+/// The game that is playing in this tab. It carries each frame from the renderer module to the game in Core and
 /// raises <see cref="Changed"/> only when text or a menu changes: components render then, never for each frame
 /// (design, section 7.2).
 /// </summary>
 public sealed class GameSession(ContentLoadResult content)
 {
-    // The render list and the input block: allocated once and pinned, so the canvas module reads and writes the
+    // The render list and the input block: allocated once and pinned, so the renderer module reads and writes the
     // game's memory itself, with one call a frame.
     private readonly double[] list = GC.AllocateArray<double>(RenderList.Length, pinned: true);
     private readonly double[] input = GC.AllocateArray<double>(InputBlock.Length, pinned: true);
     private GardenGame? game;
     private bool settingsLoaded;
-    private bool rendererChosen;
+    private bool contextLost;
 
     /// <summary>Text or a menu changed.</summary>
     public event Action? Changed;
@@ -43,13 +43,16 @@ public sealed class GameSession(ContentLoadResult content)
         _ => "text-m",
     };
 
-    /// <summary>The renderer the player asked for (the trial of docs/spike-threejs.md): the canvas unless chosen.</summary>
+    /// <summary>The renderer the garden starts with: Three.js, unless the address asks for the canvas.</summary>
     public RendererKind Renderer { get; private set; }
 
-    /// <summary>The renderer that draws the garden now: the canvas when the one asked for could not start.</summary>
+    /// <summary>The renderer that draws the garden now: the canvas when Three.js could not start or was lost.</summary>
     public RendererKind ActiveRenderer { get; private set; }
 
-    /// <summary>Why the renderer asked for does not draw ("webgl-unavailable", "load-failed"); null when it does.</summary>
+    /// <summary>
+    /// Why the canvas draws and not Three.js ("webgl-unavailable", "load-failed", "webgl-context-lost", "asked");
+    /// null when Three.js draws.
+    /// </summary>
     public string? RendererFallback { get; private set; }
 
     /// <summary>
@@ -74,51 +77,9 @@ public sealed class GameSession(ContentLoadResult content)
         }
     }
 
-    /// <summary>
-    /// Reads which renderer is asked for: by the address of the page (<c>?renderer=three</c>), otherwise as the tab
-    /// kept it. What the address asks for is kept for the tab.
-    /// </summary>
-    /// <param name="address">The address of the page; null on a page whose address chooses nothing.</param>
-    public void LoadRenderer(string? address = null)
-    {
-        var asked = RendererTrial.FromAddress(address);
-        if (asked is null && rendererChosen)
-        {
-            return;
-        }
-
-        Renderer = asked ?? RendererTrial.Parse(ReadSession(RendererTrial.SessionKey)) ?? RendererKind.Canvas;
-        rendererChosen = true;
-        if (asked is not null)
-        {
-            WriteSession(RendererTrial.SessionKey, RendererTrial.NameOf(Renderer));
-        }
-    }
-
-    /// <summary>
-    /// Chooses the renderer and keeps the choice for the tab. In the garden the game stops, the page makes a new
-    /// canvas and starts the game on it with the renderer chosen.
-    /// </summary>
-    /// <param name="kind">The renderer.</param>
-    public void SetRenderer(RendererKind kind)
-    {
-        rendererChosen = true;
-        if (kind == Renderer && RendererFallback is null)
-        {
-            return;
-        }
-
-        Renderer = kind;
-        WriteSession(RendererTrial.SessionKey, RendererTrial.NameOf(kind));
-        if (game is not null)
-        {
-            Stop();
-            CanvasGeneration++;
-            StartPending = true;
-        }
-
-        Changed?.Invoke();
-    }
+    /// <summary>Reads which renderer the address of the garden asks for (<c>?renderer=canvas</c> forces the fallback).</summary>
+    /// <param name="address">The address of the page.</param>
+    public void LoadRenderer(string? address) => Renderer = RendererChoice.Choose(address);
 
     /// <summary>Starts the garden on the canvas of the page: resumes the saved game or starts a new one.</summary>
     public async Task StartAsync()
@@ -132,7 +93,6 @@ public sealed class GameSession(ContentLoadResult content)
         }
 
         LoadSettings();
-        LoadRenderer();
         var garden = content.Content.Garden;
         var saved = LocalStorageSaveStore.Load(garden.Map);
         SaveUnreadable = saved.State == SaveState.Corrupt;
@@ -143,21 +103,22 @@ public sealed class GameSession(ContentLoadResult content)
         await GameInterop.ImportAsync();
         JsAudio.SetEnabled(Settings.Sound);
         GameInterop.OnFrame = Frame;
+        GameInterop.OnRendererLost = RendererLost;
         var tiles = garden.Map.ToKindNumbers();
         var ground = GroundNumbers();
         var atlas = started.Atlas.ToNumbers();
         string[] verdicts = [.. started.VerdictNames];
         ActiveRenderer = RendererKind.Canvas;
-        RendererFallback = null;
-        if (Renderer == RendererKind.Three)
+        RendererFallback = contextLost ? RendererChoice.ContextLost : RendererChoice.Asked;
+        if (Renderer == RendererKind.Three && !contextLost)
         {
-            // The trial: the same numbers go to the other module. Where it cannot start, the canvas draws.
+            // Three.js draws the garden. Where it cannot start, the canvas draws, flat, and the page says why.
             try
             {
                 await GameInterop.ImportThreeAsync();
                 if (!ReferenceEquals(game, started))
                 {
-                    // The player left the garden, or chose again, while the module loaded.
+                    // The player left the garden while the module loaded.
                     return;
                 }
 
@@ -167,20 +128,27 @@ public sealed class GameSession(ContentLoadResult content)
                 if (attached)
                 {
                     ActiveRenderer = RendererKind.Three;
+                    RendererFallback = null;
                 }
                 else
                 {
-                    RendererFallback = "webgl-unavailable";
+                    RendererFallback = RendererChoice.WebGlUnavailable;
                 }
             }
             catch (JSException)
             {
-                RendererFallback = "load-failed";
+                RendererFallback = RendererChoice.LoadFailed;
             }
         }
 
         if (ActiveRenderer == RendererKind.Canvas)
         {
+            await GameInterop.ImportCanvasAsync();
+            if (!ReferenceEquals(game, started))
+            {
+                return;
+            }
+
             await GameInterop.Attach(
                 new ArraySegment<double>(list),
                 new ArraySegment<double>(input),
@@ -197,7 +165,7 @@ public sealed class GameSession(ContentLoadResult content)
         Changed?.Invoke();
     }
 
-    /// <summary>Stops the canvas: the player left the garden's page.</summary>
+    /// <summary>Stops the renderer: the player left the garden's page.</summary>
     public void Stop()
     {
         if (game is null)
@@ -206,7 +174,12 @@ public sealed class GameSession(ContentLoadResult content)
         }
 
         GameInterop.OnFrame = null;
-        GameInterop.Detach();
+        GameInterop.OnRendererLost = null;
+        if (GameInterop.CanvasImported)
+        {
+            GameInterop.Detach();
+        }
+
         if (GameInterop.ThreeImported)
         {
             GameInterop.DetachThree();
@@ -262,28 +235,21 @@ public sealed class GameSession(ContentLoadResult content)
         return numbers;
     }
 
-    private static string? ReadSession(string key)
+    // The WebGL context was lost and did not come back: the game is saved where it stands and goes on with the
+    // canvas renderer, on a new canvas, for as long as the tab lives.
+    private void RendererLost()
     {
-        try
+        if (game is null || ActiveRenderer != RendererKind.Three)
         {
-            return GameInterop.GetSessionItem(key);
+            return;
         }
-        catch (JSException)
-        {
-            return null;
-        }
-    }
 
-    private static void WriteSession(string key, string value)
-    {
-        try
-        {
-            GameInterop.SetSessionItem(key, value);
-        }
-        catch (JSException)
-        {
-            // Storage is refused: the choice lasts as long as the page.
-        }
+        LocalStorageSaveStore.Save(game.ToSave());
+        Stop();
+        contextLost = true;
+        CanvasGeneration++;
+        StartPending = true;
+        Changed?.Invoke();
     }
 
     private void Keep(GameSettings settings)

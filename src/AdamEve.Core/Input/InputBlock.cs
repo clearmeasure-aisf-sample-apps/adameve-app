@@ -39,6 +39,19 @@ public static class InputBlock
     /// <summary>Device pixels for one CSS pixel, capped at 2 by the renderer.</summary>
     public const int PixelRatio = 9;
 
+    /// <summary>
+    /// The projection the renderer draws with: <see cref="Perspective"/> (the Three.js renderer) or
+    /// <see cref="Flat"/> (the canvas renderer, the fallback). The game composes the frame, culls and reads a tap
+    /// for that projection.
+    /// </summary>
+    public const int Projection = 10;
+
+    /// <summary>The projection of the perspective camera (<see cref="World.PerspectiveCamera"/>).</summary>
+    public const int Perspective = 0;
+
+    /// <summary>The flat projection of the fallback renderer (<see cref="World.Camera"/>).</summary>
+    public const int Flat = 1;
+
     /// <summary>The length of the block.</summary>
     public const int Length = 16;
 

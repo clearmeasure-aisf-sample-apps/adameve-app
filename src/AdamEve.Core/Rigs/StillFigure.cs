@@ -12,9 +12,9 @@ public readonly record struct PlacedShape(PartShape Shape, Affine Transform, dou
 
 /// <summary>
 /// A character drawn outside the garden, standing still: at the character select, and far away in the sixth day of
-/// creation. It is composed from the same rig as in the garden and judged by the same check (rule M1): the shapes
-/// to draw and the verdict are of one frame. A frame that is not concealed gets the default foliage cluster in
-/// front of the figure (fail closed) and a verdict that names the zone.
+/// creation. It is composed from the same rig as in the garden and judged by the same checks (rule M1 as decision
+/// D18 amended it): the shapes to draw and the verdict are of one frame. A frame that does not pass is not drawn
+/// at all (fail closed): it has no shapes, and its verdict names what failed.
 /// </summary>
 public sealed class StillFigure
 {
@@ -24,10 +24,10 @@ public sealed class StillFigure
         Concealment = concealment;
     }
 
-    /// <summary>The shapes to draw, in order: the body, then the occluder layer, then the default cluster of a frame that failed.</summary>
+    /// <summary>The shapes to draw, the farthest first; none for a frame that did not pass.</summary>
     public IReadOnlyList<PlacedShape> Shapes { get; }
 
-    /// <summary>The M1 verdict of the frame: "ok" or "fail:&lt;rig&gt;:&lt;zone&gt;".</summary>
+    /// <summary>The M1 verdict of the frame: "ok", "fail:&lt;rig&gt;:&lt;zone&gt;" or "fail:&lt;rig&gt;:structure".</summary>
     public string Concealment { get; }
 
     /// <summary>Composes a standing figure and judges it.</summary>
@@ -40,33 +40,31 @@ public sealed class StillFigure
     public static StillFigure Compose(Rig rig, RigAnimation animation, Facing facing, Covering covering, double scale, int? light = null)
     {
         ArgumentNullException.ThrowIfNull(rig);
+        if (RigStructure.Violations(rig).Count > 0)
+        {
+            return new StillFigure([], $"fail:{rig.Id}:{Structure}");
+        }
+
         var pose = new RigPose(rig);
         pose.Sample(animation, 0, facing, covering);
         var exposed = new ConcealmentChecker().FirstExposedZone(pose, scale);
-
-        var shapes = new List<PlacedShape>();
-        foreach (var occluders in new[] { false, true })
-        {
-            foreach (var placed in pose.Parts)
-            {
-                var part = rig.Parts[placed.PartIndex];
-                if ((part.Role == PartRole.Occluder) == occluders)
-                {
-                    shapes.Add(new PlacedShape(part.Shape, placed.Transform, part.Width, part.Height, light ?? part.Colour));
-                }
-            }
-        }
-
         if (exposed >= 0)
         {
-            foreach (var cluster in DefaultFoliage.Shapes)
-            {
-                shapes.Add(new PlacedShape(cluster.Shape, Affine.Translation(cluster.X, cluster.Y), cluster.Width, cluster.Height, cluster.Colour));
-            }
+            return new StillFigure([], $"fail:{rig.Id}:{rig.Zones[exposed].Id}");
         }
 
-        return new StillFigure(shapes, exposed < 0 ? Ok : $"fail:{rig.Id}:{rig.Zones[exposed].Id}");
+        var shapes = new List<PlacedShape>();
+        foreach (var placed in pose.Parts)
+        {
+            var part = rig.Parts[placed.PartIndex];
+            shapes.Add(new PlacedShape(part.Shape, placed.Transform, part.Width, part.Height, light ?? part.Colour));
+        }
+
+        return new StillFigure(shapes, Ok);
     }
+
+    /// <summary>What a verdict names in place of a zone when the rig itself holds what the rule does not allow.</summary>
+    public const string Structure = "structure";
 
     /// <summary>The verdict of a frame in which every zone is concealed, or in which no character is drawn.</summary>
     public const string Ok = "ok";

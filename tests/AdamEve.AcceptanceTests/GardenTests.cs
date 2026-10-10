@@ -9,73 +9,30 @@ using Microsoft.Playwright.NUnit;
 namespace AdamEve.AcceptanceTests;
 
 /// <summary>
-/// Slice S2, "Walk the garden", on the three device profiles of the design. A test starts from a saved game written
-/// into <c>localStorage</c> before the garden loads: the save format is the scenario format, so the game has no
-/// test-only way in. What a test reads is the page: the data- attributes of the game root (player tile, facing, the
-/// M1 verdict), the settings and the status line; never pixels.
+/// Slice S2, "Walk the garden", on the three device profiles of the design, drawn as a player sees it: by the
+/// Three.js renderer with the perspective camera (decision D18). A test starts from a saved game written into
+/// <c>localStorage</c> before the garden loads: the save format is the scenario format, so the game has no
+/// test-only way in. What a test reads here is the page: the data- attributes of the game root (player tile,
+/// facing, the M1 verdict), the settings and the status line. A tap is aimed through the camera of the game
+/// (<see cref="PerspectiveCamera"/>), as the game reads it. What the renderer drew is read in
+/// <see cref="GardenRendererTests"/>.
 /// </summary>
 [TestFixture]
 public class GardenTests : PlaywrightTest
 {
-    private static readonly (string Name, int X, int Y)[] EightFacings =
-    [
-        ("N", 0, -1), ("S", 0, 1), ("E", 1, 0), ("W", -1, 0), ("NE", 1, -1), ("SW", -1, 1), ("SE", 1, 1), ("NW", -1, -1),
-    ];
+    private static GardenContent Garden() => GardenView.Garden();
 
-    private static GardenContent Garden() => GameContent.LoadEmbedded().Content?.Garden
-        ?? throw new InvalidOperationException("The content of the game did not load.");
+    private static string Tile(int x, int y) => GardenView.Tile(x, y);
 
-    private static string Tile(int x, int y) => new TilePos(x, y).ToString();
+    private static string SaveAt(int x, int y, PlayerCharacter character = PlayerCharacter.Adam, Facing facing = Facing.S) => GardenView.SaveAt(x, y, character, facing);
 
-    private static string SaveAt(int x, int y, PlayerCharacter character = PlayerCharacter.Adam, Facing facing = Facing.S) =>
-        SaveCodec.Write(new SaveGame { Character = character, TileX = x, TileY = y, Facing = facing });
-
-    /// <summary>A tile of the glade with a free tile on each of its eight sides, far from the edge of the map.</summary>
-    private static TilePos OpenGround()
-    {
-        var map = Garden().Map;
-        var glade = map.Regions.Single(region => region.Id == "central-glade");
-        for (var y = glade.Y + 2; y < glade.Y + glade.Height - 2; y++)
-        {
-            for (var x = glade.X + 2; x < glade.X + glade.Width - 2; x++)
-            {
-                var around = Enumerable.Range(-1, 3).SelectMany(dy => Enumerable.Range(-1, 3).Select(dx => new TilePos(x + dx, y + dy)));
-                if (around.All(tile => map.IsWalkable(tile) && tile != map.Spawn("adam") && tile != map.Spawn("woman")))
-                {
-                    return new TilePos(x, y);
-                }
-            }
-        }
-
-        throw new InvalidOperationException("The glade has no open ground.");
-    }
+    private static TilePos OpenGround() => GardenView.OpenGround();
 
     private bool HasTouch(string device) => Playwright.Devices[device].HasTouch == true;
 
-    /// <summary>Opens the garden, from a saved game when one is given, and waits for its first frames.</summary>
-    private async Task<ILocator> OpenGardenAsync(IPage page, string? save = null, string? settings = null)
-    {
-        if (save is not null || settings is not null)
-        {
-            // A page of the site that starts no runtime: the storage of the origin is written before the game loads.
-            await page.GotoAsync(Site.BaseAddress + "404.html");
-            await page.EvaluateAsync(
-                "entries => { for (const [key, value] of entries) { if (value !== null) { localStorage.setItem(key, value); } } }",
-                new[] { new[] { SaveCodec.SaveKey, save }, new[] { SaveCodec.SettingsKey, settings } });
-        }
+    private static Task<ILocator> OpenGardenAsync(IPage page, string? save = null, string? settings = null) => GardenView.OpenAsync(page, save, settings);
 
-        await page.GotoAsync(Site.BaseAddress + "garden");
-        var game = page.GetByTestId("game");
-        await Expect(game).ToHaveAttributeAsync("data-ready", "true", new() { Timeout = 30_000 });
-        await Expect(game).ToHaveAttributeAsync("data-concealment", "ok");
-        return game;
-    }
-
-    private async Task ExpectStandingOnAsync(ILocator game, string tile)
-    {
-        await Expect(game).ToHaveAttributeAsync("data-player-tile", tile, new() { Timeout = 15_000 });
-        await Expect(game).ToHaveAttributeAsync("data-moving", "false");
-    }
+    private static Task ExpectStandingOnAsync(ILocator game, string tile) => GardenView.ExpectStandingOnAsync(game, tile);
 
     /// <summary>One press of a direction: a tap on the D-pad where the device has touch, a key otherwise.</summary>
     private async Task PressAsync(IPage page, string device, string direction)
@@ -90,36 +47,14 @@ public class GardenTests : PlaywrightTest
         }
     }
 
-    /// <summary>A tap (or a click) on the tile that lies a number of tiles from the player, who is in the middle of the play area.</summary>
+    /// <summary>A tap (or a click) on the tile that lies a number of tiles from the player, where the camera of the game shows it.</summary>
     private async Task TapTileAsync(IPage page, string device, int tilesRight, int tilesDown)
     {
-        var canvas = page.GetByTestId("game-canvas");
-        var box = await canvas.BoundingBoxAsync() ?? throw new InvalidOperationException("The canvas has no box.");
-        var tile = Math.Max(Math.Min(box.Width, box.Height) / Camera.ShortSideTiles, Math.Max(box.Width, box.Height) / Camera.LongSideTiles);
-        var position = new Position { X = (float)((box.Width / 2) + (tilesRight * tile)), Y = (float)((box.Height / 2) + (tilesDown * tile)) };
-        position.X.ShouldBeInRange(1, (float)box.Width - 1);
-        position.Y.ShouldBeInRange(1, (float)box.Height - 1);
-        if (HasTouch(device))
-        {
-            await canvas.TapAsync(new() { Position = position });
-        }
-        else
-        {
-            await canvas.ClickAsync(new() { Position = position });
-        }
+        var player = await GardenView.PlayerTileAsync(page.GetByTestId("game"));
+        await GardenView.TapTileAsync(page, HasTouch(device), player, new TilePos(player.X + tilesRight, player.Y + tilesDown));
     }
 
-    /// <summary>What may not happen in any test of the garden.</summary>
-    private async Task ExpectACleanRunAsync(GuardedPage guarded, ILocator game)
-    {
-        await Expect(game).ToHaveAttributeAsync("data-concealment", "ok");
-        await Expect(game).ToHaveAttributeAsync("data-concealment-failures", "0");
-        guarded.Errors.ShouldBeEmpty();
-        guarded.RequestsOutsideTheOrigin.ShouldBeEmpty();
-        (await guarded.Page.EvaluateAsync<string>("() => document.cookie")).ShouldBeEmpty();
-        var keys = await guarded.Page.EvaluateAsync<string[]>("() => Object.keys(localStorage)");
-        keys.ShouldBeSubsetOf([SaveCodec.SaveKey, SaveCodec.SettingsKey, SaveCodec.CorruptKey]);
-    }
+    private static Task ExpectACleanRunAsync(GuardedPage guarded, ILocator game) => GardenView.ExpectACleanRunAsync(guarded, game);
 
     /// <summary>Whether anything of the game reaches beyond the viewport, or the page scrolls.</summary>
     private static Task<string[]> OverflowingAsync(IPage page) => page.EvaluateAsync<string[]>(
@@ -161,6 +96,7 @@ public class GardenTests : PlaywrightTest
         await Expect(game).ToHaveAttributeAsync("data-ready", "true", new() { Timeout = 30_000 });
         await Expect(game).ToHaveAttributeAsync("data-player-tile", spawn.ToString());
         await Expect(game).ToHaveAttributeAsync("data-facing", "S");
+        await GardenView.ExpectThreeDrawsAsync(game);
         await Expect(page.GetByTestId("status-line")).ToHaveTextAsync(GameText.CentralGlade);
         await Expect(page).ToHaveTitleAsync("Adam and woman in the garden of Eden");
         var canvas = await page.GetByTestId("game-canvas").EvaluateAsync<int[]>("canvas => [canvas.width, canvas.height, canvas.clientWidth, canvas.clientHeight]");
@@ -289,45 +225,6 @@ public class GardenTests : PlaywrightTest
         await ExpectACleanRunAsync(guarded, game);
     }
 
-    [TestCase("Desktop Chrome", "chromium", PlayerCharacter.Adam)]
-    [TestCase("Desktop Chrome", "chromium", PlayerCharacter.Woman)]
-    [TestCase("Pixel 7", "chromium", PlayerCharacter.Adam)]
-    [TestCase("Pixel 7", "chromium", PlayerCharacter.Woman)]
-    [TestCase("iPhone 13", "webkit", PlayerCharacter.Adam)]
-    [TestCase("iPhone 13", "webkit", PlayerCharacter.Woman)]
-    public async Task Walk_InAllEightFacings_ShouldHaveTheVerdictOkOnEveryFrame(string device, string engine, PlayerCharacter character)
-    {
-        var open = OpenGround();
-        await using var guarded = await GuardedPage.OpenAsync(Playwright, device, engine);
-        var page = guarded.Page;
-        var game = await OpenGardenAsync(page, SaveAt(open.X, open.Y, character));
-        var x = open.X;
-        var y = open.Y;
-
-        foreach (var facing in EightFacings)
-        {
-            await TapTileAsync(page, device, facing.X, facing.Y);
-            x += facing.X;
-            y += facing.Y;
-
-            await ExpectStandingOnAsync(game, Tile(x, y));
-            await Expect(game).ToHaveAttributeAsync("data-facing", facing.Name);
-            await Expect(game).ToHaveAttributeAsync("data-concealment", "ok");
-            await KeepScreenshotAsync(page, $"m1-{device}-{character}-{facing.Name}".Replace(' ', '-'));
-        }
-
-        // For a screenshot Playwright adds a style sheet of its own to the page. On WebKit the content security
-        // policy of the site refuses it (style-src 'self') and the browser says so, once for each screenshot. That
-        // is the policy at work on the test's tool, not an error of the game: at most one such line for each
-        // screenshot is set aside, and every other error still fails the test.
-        const string RefusedStyleSheet = "Refused to apply a stylesheet because its hash, its nonce, or 'unsafe-inline' does not appear in the style-src directive of the Content Security Policy.";
-        await page.WaitForTimeoutAsync(250);
-        guarded.Errors.Count(error => error == RefusedStyleSheet).ShouldBeLessThanOrEqualTo(EightFacings.Length);
-        guarded.Errors.RemoveAll(error => error == RefusedStyleSheet);
-        Tile(x, y).ShouldBe(open.ToString());
-        await ExpectACleanRunAsync(guarded, game);
-    }
-
     [TestCase("Pixel 7", "chromium")]
     [TestCase("iPhone 13", "webkit")]
     public async Task Rotate_WithTheSettingsOpen_ShouldKeepTheTileTheSettingsAndTheFit(string device, string engine)
@@ -401,6 +298,8 @@ public class GardenTests : PlaywrightTest
         (await OverflowingAsync(page)).ShouldBeEmpty();
 
         await page.GetByTestId("menu-button").ClickAsync();
+        await Expect(page.GetByTestId("settings")).Not.ToContainTextAsync("Renderer");
+        (await page.Locator("[data-testid^='renderer']").CountAsync()).ShouldBe(0, "the control of the trial is gone");
         await page.GetByTestId("text-size-S").CheckAsync();
         var smallest = await game.EvaluateAsync<string>("element => getComputedStyle(element).fontSize");
         await page.GetByTestId("text-size-XL").CheckAsync();
@@ -449,55 +348,5 @@ public class GardenTests : PlaywrightTest
         await PressAsync(page, device, "down");
         await ExpectStandingOnAsync(game, Tile(spawn.X, spawn.Y + 1));
         await ExpectACleanRunAsync(guarded, game);
-    }
-
-    [Test]
-    public async Task Walk_OnAPixel7WithTheProcessorSlowedFourTimes_ShouldKeepTheMedianFrameAt20MillisecondsOrLess()
-    {
-        // Row 17 of the map is open from the Pison meadows to the river: five seconds of walking east fit in it.
-        await using var guarded = await GuardedPage.OpenAsync(Playwright, "Pixel 7", "chromium");
-        var page = guarded.Page;
-        var game = await OpenGardenAsync(page, SaveAt(3, 17));
-        var session = await page.Context.NewCDPSessionAsync(page);
-        await session.SendAsync("Emulation.setCPUThrottlingRate", new Dictionary<string, object> { ["rate"] = 4 });
-        await page.GetByTestId("dpad-right").DispatchEventAsync("pointerdown");
-        await Expect(game).ToHaveAttributeAsync("data-moving", "true");
-
-        var frames = await page.EvaluateAsync<double[]>(
-            """
-            () => new Promise(resolve => {
-                const times = [];
-                let first;
-                let last;
-                const frame = now => {
-                    if (last !== undefined) { times.push(now - last); }
-                    first ??= now;
-                    last = now;
-                    if (now - first < 5000) { requestAnimationFrame(frame); } else { resolve(times); }
-                };
-                requestAnimationFrame(frame);
-            })
-            """);
-        var tile = await game.GetAttributeAsync("data-player-tile");
-        await page.GetByTestId("dpad-right").DispatchEventAsync("pointerup");
-        await session.SendAsync("Emulation.setCPUThrottlingRate", new Dictionary<string, object> { ["rate"] = 1 });
-
-        var sorted = frames.Order().ToArray();
-        var median = sorted[sorted.Length / 2];
-        TestContext.Out.WriteLine(string.Create(CultureInfo.InvariantCulture, $"Frame budget, Pixel 7 profile, CPU slowed 4 times: {frames.Length} frames in 5 s, median {median:0.0} ms, 95th percentile {sorted[(int)(sorted.Length * 0.95)]:0.0} ms, longest {sorted[^1]:0.0} ms."));
-        median.ShouldBeLessThanOrEqualTo(20);
-        frames.Length.ShouldBeGreaterThan(150);
-        int.Parse(tile!.Split(',')[0], CultureInfo.InvariantCulture).ShouldBeGreaterThanOrEqualTo(3 + 15);
-        await ExpectACleanRunAsync(guarded, game);
-    }
-
-    /// <summary>A screenshot of a key frame, kept with the test results for the review of rule M1. Never compared.</summary>
-    private static async Task KeepScreenshotAsync(IPage page, string name)
-    {
-        var folder = Path.Combine(TestContext.CurrentContext.WorkDirectory, "m1-screenshots");
-        Directory.CreateDirectory(folder);
-        var path = Path.Combine(folder, name + ".png");
-        await page.ScreenshotAsync(new() { Path = path, Caret = ScreenshotCaret.Initial, Animations = ScreenshotAnimations.Allow });
-        TestContext.AddTestAttachment(path);
     }
 }

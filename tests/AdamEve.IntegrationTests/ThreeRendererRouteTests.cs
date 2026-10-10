@@ -3,9 +3,9 @@ using System.Text.Json;
 namespace AdamEve.IntegrationTests;
 
 /// <summary>
-/// What the host sends for the trial of the Three.js renderer (docs/spike-threejs.md): its module and the vendored
-/// library as scripts of the site itself, under the policy of every other answer, compressed, and never as files a
-/// browser may keep for a year (they have no fingerprint in their names).
+/// What the host sends for the renderer of the garden (design, section 7.1 and decision D18): its modules and the
+/// vendored Three.js as scripts of the site itself, under the policy of every other answer, compressed, and never
+/// as files a browser may keep for a year (they have no fingerprint in their names).
 /// </summary>
 [TestFixture]
 public class ThreeRendererRouteTests
@@ -17,9 +17,11 @@ public class ThreeRendererRouteTests
     };
 
     [TestCase("js/render-three.js")]
+    [TestCase("js/render.js")]
+    [TestCase("js/shell.js")]
     [TestCase("lib/three/three.module.min.js")]
     [TestCase("lib/three/three.core.min.js")]
-    public async Task Get_AScriptOfTheTrial_WithBrotliAccepted_ShouldAnswerBrotliToAskForAgainEachTimeUnderThePolicyOfTheSite(string path)
+    public async Task Get_AScriptOfTheRenderer_WithBrotliAccepted_ShouldAnswerBrotliToAskForAgainEachTimeUnderThePolicyOfTheSite(string path)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, path);
         request.Headers.TryAddWithoutValidation("Accept-Encoding", "br");
@@ -53,14 +55,15 @@ public class ThreeRendererRouteTests
     }
 
     [Test]
-    public async Task Get_TheFilesOfTheSite_ShouldListTheFilesOfTheTrialAsLoadedOnDemandAndNoOther()
+    public async Task Get_TheFilesOfTheSite_ShouldListTheModulesOfTheGardenAndThreeJsAsLoadedOnDemandAndNoOther()
     {
         using var document = JsonDocument.Parse(await Client.GetStringAsync("_health/files.json"));
         var files = document.RootElement.GetProperty("files").EnumerateArray().Select(file => file.GetProperty("path").GetString()!).ToList();
 
         var onDemand = document.RootElement.GetProperty("onDemand").EnumerateArray().Select(path => path.GetString()!).ToList();
 
-        onDemand.ShouldBe(files.Where(path => path == "js/render-three.js" || path.StartsWith("lib/three/", StringComparison.Ordinal)), ignoreOrder: true);
+        onDemand.ShouldBe(files.Where(path => path.StartsWith("js/", StringComparison.Ordinal) || path.StartsWith("lib/three/", StringComparison.Ordinal)), ignoreOrder: true);
+        onDemand.ShouldBe(["js/audio.js", "js/render-three.js", "js/render.js", "js/shell.js", "lib/three/LICENSE.txt", "lib/three/README.md", "lib/three/three.core.min.js", "lib/three/three.module.min.js"], ignoreOrder: true);
         onDemand.ShouldContain("lib/three/three.module.min.js");
         onDemand.ShouldContain("lib/three/three.core.min.js");
         files.Where(path => path.StartsWith("lib/", StringComparison.Ordinal)).ShouldAllBe(path => path.StartsWith("lib/three/", StringComparison.Ordinal));

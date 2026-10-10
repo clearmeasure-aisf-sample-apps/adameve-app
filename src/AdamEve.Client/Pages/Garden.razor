@@ -10,9 +10,9 @@
 
 <PageTitle>@GameInfo.Title</PageTitle>
 
-@* The game root. The canvas module writes the data- attributes the tests read (player tile, facing, the M1
+@* The game root. The renderer module writes the data- attributes the tests read (player tile, facing, the M1
    verdict). All text is here, in the page, over the canvas: the canvas holds no words. *@
-<div id="game" class="game @Session.TextClass" data-testid="game" data-renderer="@RendererTrial.NameOf(Session.ActiveRenderer)" data-renderer-fallback="@Session.RendererFallback">
+<div id="game" class="game @Session.TextClass" data-testid="game" data-renderer="@RendererChoice.NameOf(Session.ActiveRenderer)" data-renderer-fallback="@Session.RendererFallback">
     <h1 class="visually-hidden">@GameInfo.Title</h1>
 
     <div class="game-play">
@@ -34,7 +34,7 @@
     <section class="game-panel @(Session.MenuOpen ? null : "game-panel-empty")" data-game-panel data-testid="settings" aria-live="polite">
         @if (Session.MenuOpen)
         {
-            <SettingsControls RendererTrialShown="true" />
+            <SettingsControls />
             <p class="game-panel-links">
                 <a href="" data-testid="title-link">@GameText.BackToTitle</a>
                 <button type="button" class="game-button" data-testid="settings-close" @onclick="Session.ToggleMenu">@GameText.CloseDefinition</button>

@@ -24,8 +24,9 @@ public enum FrameEvents
 
 /// <summary>
 /// Slice S2, "Walk the garden": the player's character walks the map, the other stands in the glade, and every
-/// frame is composed into the render list with its M1 verdict. All of it runs here, without a browser: the client
-/// only carries the numbers in and out.
+/// frame is composed into the render list with its camera and its M1 verdict. All of it runs here, without a
+/// browser: the client only carries the numbers in and out. The frame is composed for the projection the renderer
+/// asks for: the perspective camera (decision D18), or the flat camera of the fallback renderer.
 /// </summary>
 public sealed class GardenGame
 {
@@ -44,7 +45,10 @@ public sealed class GardenGame
     private readonly int player;
     private readonly int zonesPerRig;
     private readonly SaveGame resumed;
-    private Camera camera;
+    private readonly bool[] sound;
+    private Camera flatCamera;
+    private PerspectiveCamera camera;
+    private bool flat;
     private int pendingPressed;
     private bool pendingTapped;
     private double pendingTapX;
@@ -84,15 +88,19 @@ public sealed class GardenGame
         walker = new Walker(map, start, save?.Facing ?? Facing.S) { Obstacle = other.Tile };
         RegionId = map.RegionAt(start)?.Id;
 
+        // A rig that holds what the amended rule does not allow (RigStructure) fails every frame, whatever it shows.
+        sound = [RigStructure.Violations(adam).Count == 0, RigStructure.Violations(woman).Count == 0];
         zonesPerRig = Math.Max(1, Math.Max(adam.Zones.Count, woman.Zones.Count));
-        var names = new List<string> { "ok" };
+        var names = new List<string> { StillFigure.Ok };
         foreach (var actor in actors)
         {
+            var rig = actor.Pose.Rig;
             for (var zone = 0; zone < zonesPerRig; zone++)
             {
-                var rig = actor.Pose.Rig;
                 names.Add($"fail:{rig.Id}:{(zone < rig.Zones.Count ? rig.Zones[zone].Id : "none")}");
             }
+
+            names.Add($"fail:{rig.Id}:{StillFigure.Structure}");
         }
 
         VerdictNames = names;
@@ -102,8 +110,8 @@ public sealed class GardenGame
     public AtlasCatalog Atlas { get; }
 
     /// <summary>
-    /// The M1 verdicts by the number the render list carries: "ok", then "fail:&lt;rig&gt;:&lt;zone&gt;" for each
-    /// zone of each rig.
+    /// The M1 verdicts by the number the render list carries: "ok", then for each rig "fail:&lt;rig&gt;:&lt;zone&gt;"
+    /// for each zone and "fail:&lt;rig&gt;:structure".
     /// </summary>
     public IReadOnlyList<string> VerdictNames { get; }
 
@@ -128,7 +136,7 @@ public sealed class GardenGame
     /// <summary>The region the player is in, or null.</summary>
     public string? RegionId { get; private set; }
 
-    /// <summary>The M1 verdict of the last frame: "ok" or "fail:&lt;rig&gt;:&lt;zone&gt;".</summary>
+    /// <summary>The M1 verdict of the last frame: "ok", "fail:&lt;rig&gt;:&lt;zone&gt;" or "fail:&lt;rig&gt;:structure".</summary>
     public string Concealment { get; private set; } = "ok";
 
     /// <summary>How many frames so far had a verdict other than "ok".</summary>
@@ -176,7 +184,8 @@ public sealed class GardenGame
                 // A direction pressed while the character is between two tiles waits for the next tile: two quick
                 // taps on the D-pad are two tiles.
                 var bits = (int)input[InputBlock.Held] | pendingPressed;
-                var tap = pendingTapped ? camera.TileAt(pendingTapX, pendingTapY, map) : null;
+                // The tile under the tap, through the camera of the frame the player saw.
+                var tap = !pendingTapped ? null : flat ? flatCamera.TileAt(pendingTapX, pendingTapY, map) : camera.TileAt(pendingTapX, pendingTapY, map);
                 pendingTapped = false;
                 var wasMoving = walker.Moving;
                 var begun = walker.StepsBegun;
@@ -226,16 +235,26 @@ public sealed class GardenGame
         var size = map.TileSize;
         var viewWidth = input[InputBlock.ViewWidth] > 0 ? input[InputBlock.ViewWidth] : 360;
         var viewHeight = input[InputBlock.ViewHeight] > 0 ? input[InputBlock.ViewHeight] : 640;
-        camera = Camera.Follow(viewWidth, viewHeight, (me.X + 0.5) * size, (me.Y + 0.5) * size, map);
-        var deviceScale = camera.Scale * Math.Clamp(input[InputBlock.PixelRatio], 1, 2);
+        var focusX = (me.X + 0.5) * size;
+        var focusY = (me.Y + 0.5) * size;
+        flat = (int)input[InputBlock.Projection] == InputBlock.Flat;
+        flatCamera = Camera.Follow(viewWidth, viewHeight, focusX, focusY, map);
+        camera = PerspectiveCamera.Follow(viewWidth, viewHeight, focusX, focusY, map);
+        var pixelRatio = Math.Clamp(input[InputBlock.PixelRatio], 1, 2);
 
+        // The verdict of exactly what is drawn: each figure at the scale it has on the screen, which under the
+        // perspective camera is the scale of the place it stands on.
         var verdict = 0;
         foreach (var actor in actors)
         {
-            actor.ExposedZone = checker.FirstExposedZone(actor.Pose, deviceScale);
+            // A figure far outside the picture (beside or behind the eye) is not seen; it is judged all the same,
+            // at a scale a figure can be seen at.
+            var scale = flat ? flatCamera.Scale : camera.ScaleAt((actor.X + 0.5) * size, FeetY(actor));
+            scale = scale > 0 ? Math.Clamp(scale, camera.Scale / 4, camera.Scale * 4) : camera.Scale;
+            actor.ExposedZone = sound[actor.RigIndex] ? checker.FirstExposedZone(actor.Pose, scale * pixelRatio) : zonesPerRig;
             if (actor.ExposedZone >= 0 && verdict == 0)
             {
-                verdict = 1 + (actor.RigIndex * zonesPerRig) + actor.ExposedZone;
+                verdict = 1 + (actor.RigIndex * (zonesPerRig + 1)) + actor.ExposedZone;
             }
         }
 
@@ -247,23 +266,26 @@ public sealed class GardenGame
         Concealment = VerdictNames[verdict];
 
         // Sprites and characters by depth: the trees row by row from the north, each character before the first row
-        // whose trees stand nearer the viewer than its feet.
+        // whose trees stand nearer the viewer than its feet. The canvas draws in this order; a renderer with depth
+        // keeps the order only among the parts of one character.
         drawOrder[0] = actors[0].Y <= actors[1].Y ? actors[0] : actors[1];
         drawOrder[1] = drawOrder[0] == actors[0] ? actors[1] : actors[0];
         var count = 0;
         var nextActor = 0;
-        var firstColumn = Math.Max(0, (int)Math.Floor(camera.X / size) - 1);
-        var lastColumn = Math.Min(map.Width - 1, (int)Math.Floor((camera.X + (viewWidth / camera.Scale)) / size) + 1);
-        var firstRow = Math.Max(0, (int)Math.Floor(camera.Y / size) - 1);
-        var lastRow = Math.Min(map.Height - 1, (int)Math.Floor((camera.Y + (viewHeight / camera.Scale)) / size) + 3);
+        var (firstRow, lastRow) = flat
+            ? (Math.Max(0, (int)Math.Floor(flatCamera.Y / size) - 1), Math.Min(map.Height - 1, (int)Math.Floor((flatCamera.Y + (viewHeight / flatCamera.Scale)) / size) + 3))
+            : camera.VisibleRows(map);
         for (var row = firstRow; row <= lastRow; row++)
         {
             var baseline = ((row + 1) * size) - SpriteBaseAboveTileBottom;
             while (nextActor < drawOrder.Length && FeetY(drawOrder[nextActor]) <= baseline)
             {
-                WriteBody(drawOrder[nextActor++], list, ref count);
+                WriteFigure(drawOrder[nextActor++], list, ref count);
             }
 
+            var (firstColumn, lastColumn) = flat
+                ? (Math.Max(0, (int)Math.Floor(flatCamera.X / size) - 1), Math.Min(map.Width - 1, (int)Math.Floor((flatCamera.X + (viewWidth / flatCamera.Scale)) / size) + 1))
+                : camera.VisibleColumns(row, map);
             for (var column = firstColumn; column <= lastColumn; column++)
             {
                 var sprite = Atlas.SpriteId(map.KindAt(new TilePos(column, row)));
@@ -276,36 +298,13 @@ public sealed class GardenGame
 
         while (nextActor < drawOrder.Length)
         {
-            WriteBody(drawOrder[nextActor++], list, ref count);
-        }
-
-        // The occluder layer, after every character and sprite: the companion foliage, and the default cluster in
-        // front of a character whose frame is not concealed (fail closed).
-        foreach (var actor in drawOrder)
-        {
-            var origin = Affine.Translation((actor.X + 0.5) * size, FeetY(actor));
-            foreach (var placed in actor.Pose.Parts)
-            {
-                if (actor.Pose.Rig.Parts[placed.PartIndex].Role == PartRole.Occluder)
-                {
-                    Write(list, ref count, Atlas.PartId(actor.RigIndex, placed.PartIndex), origin.Then(placed.Transform), RenderList.OccluderLayer | CharacterBits(actor));
-                }
-            }
-
-            if (actor.ExposedZone >= 0)
-            {
-                for (var shape = 0; shape < DefaultFoliage.Shapes.Count; shape++)
-                {
-                    var cluster = DefaultFoliage.Shapes[shape];
-                    Write(list, ref count, Atlas.DefaultFoliageId(shape), origin.Then(Affine.Translation(cluster.X, cluster.Y)), RenderList.OccluderLayer | RenderList.FailClosed | CharacterBits(actor));
-                }
-            }
+            WriteFigure(drawOrder[nextActor++], list, ref count);
         }
 
         list[RenderList.Count] = count;
-        list[RenderList.CameraX] = camera.X;
-        list[RenderList.CameraY] = camera.Y;
-        list[RenderList.Scale] = camera.Scale;
+        list[RenderList.CameraX] = flatCamera.X;
+        list[RenderList.CameraY] = flatCamera.Y;
+        list[RenderList.Scale] = flat ? flatCamera.Scale : camera.Scale;
         list[RenderList.PlayerTileX] = walker.Tile.X;
         list[RenderList.PlayerTileY] = walker.Tile.Y;
         list[RenderList.Concealment] = verdict;
@@ -317,26 +316,36 @@ public sealed class GardenGame
             list[RenderList.Anchors + (actor.RigIndex * 2)] = (actor.X + 0.5) * size;
             list[RenderList.Anchors + (actor.RigIndex * 2) + 1] = FeetY(actor);
         }
-    }
 
-    // Whose part an entry is, for a renderer with depth: the number of the character, from 1.
-    private static int CharacterBits(Actor actor) => (actor.RigIndex + 1) << RenderList.CharacterShift;
+        list[RenderList.Projection] = flat ? InputBlock.Flat : InputBlock.Perspective;
+        list[RenderList.EyeX] = camera.EyeX;
+        list[RenderList.EyeHeight] = camera.EyeHeight;
+        list[RenderList.EyeY] = camera.EyeY;
+        list[RenderList.Tilt] = PerspectiveCamera.TiltRadians;
+        list[RenderList.FieldOfView] = PerspectiveCamera.FieldOfViewRadians;
+        list[RenderList.HazeStart] = camera.HazeStart;
+        list[RenderList.HazeEnd] = camera.HazeEnd;
+        list[RenderList.FigureDepthHeight] = PerspectiveCamera.FigureDepthHeight;
+    }
 
     private double FeetY(Actor actor) => ((actor.Y + 0.5) * map.TileSize) + FeetBelowCentre;
 
-    private void WriteBody(Actor actor, Span<double> list, ref int count)
+    // A figure whose frame did not pass is not drawn at all (fail closed): the frame is counted, and the page says so.
+    private void WriteFigure(Actor actor, Span<double> list, ref int count)
     {
+        if (actor.ExposedZone >= 0)
+        {
+            return;
+        }
+
         var origin = Affine.Translation((actor.X + 0.5) * map.TileSize, FeetY(actor));
         foreach (var placed in actor.Pose.Parts)
         {
-            if (actor.Pose.Rig.Parts[placed.PartIndex].Role != PartRole.Occluder)
-            {
-                Write(list, ref count, Atlas.PartId(actor.RigIndex, placed.PartIndex), origin.Then(placed.Transform), CharacterBits(actor));
-            }
+            Write(list, ref count, Atlas.PartId(actor.RigIndex, placed.PartIndex), origin.Then(placed.Transform), actor.RigIndex + 1);
         }
     }
 
-    private static void Write(Span<double> list, ref int count, int atlasId, in Affine transform, int flags)
+    private static void Write(Span<double> list, ref int count, int atlasId, in Affine transform, int character)
     {
         if (count >= RenderList.Capacity)
         {
@@ -351,7 +360,7 @@ public sealed class GardenGame
         entry[RenderList.Transform + 3] = transform.D;
         entry[RenderList.Transform + 4] = transform.E;
         entry[RenderList.Transform + 5] = transform.F;
-        entry[RenderList.Flags] = flags;
+        entry[RenderList.Character] = character;
         count++;
     }
 

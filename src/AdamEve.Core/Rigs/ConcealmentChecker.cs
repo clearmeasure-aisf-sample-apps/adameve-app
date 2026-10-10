@@ -1,12 +1,18 @@
 namespace AdamEve.Core.Rigs;
 
 /// <summary>
-/// The modesty check of rule M1 (design, section 5.6), the same for the build's asset check and for every frame of
-/// the running game. For each concealment zone of a composed frame it rasterizes the zone, inset by one pixel, and
-/// requires that every pixel of it is covered, with alpha 0.95 or more, by the parts its concealment record names:
-/// occluder, hair, apron or coat parts nearer the viewer than the zone. A zone the record declares turned away
-/// must lie on the far side of its body part in the depth order, and that body part must cover it. A zone without a
-/// valid record is not concealed.
+/// The modesty check of rule M1 as decision D18 amended it (design, sections 5.6 and 12), the same for the build's
+/// asset check and for every frame of the running game. For each concealment zone of a composed frame it reads the
+/// zone's concealment record and requires one of three things:
+/// <list type="bullet">
+/// <item>covered: every pixel of the zone, inset by one pixel, is covered with alpha 0.95 or more by the parts the
+/// record names (hair, apron or coat parts nearer the viewer than the zone): the woman's chest by her hair;</item>
+/// <item>plain: the zone is the body's own smooth shape. The body part it lies on covers every pixel of it, and no
+/// other part reaches into the zone, except a body part that lies beneath that one or has its very colour: the
+/// pelvic region of both figures before Genesis 3:7;</item>
+/// <item>turned away: the zone lies on the far side of its body part in the depth order, and that part covers it.</item>
+/// </list>
+/// A zone without a valid record is not concealed.
 /// </summary>
 public sealed class ConcealmentChecker
 {
@@ -14,6 +20,9 @@ public sealed class ConcealmentChecker
     public const double RequiredAlpha = 0.95;
 
     private const int Samples = 4;
+
+    // Two outlines that only touch do not reach into each other.
+    private const double Touch = 1e-9;
 
     // The columns of the zone on each row of pixels: first and last, and a scratch copy for the inset.
     private int[] first = new int[128];
@@ -49,6 +58,16 @@ public sealed class ConcealmentChecker
                 return index;
             }
 
+            if (record.Plain)
+            {
+                if (!Plain(pose, zone, index, scale, insetPixels))
+                {
+                    return index;
+                }
+
+                continue;
+            }
+
             var depth = zone.DepthIn(pose.View);
             var count = 0;
             foreach (var placed in pose.Parts)
@@ -73,31 +92,155 @@ public sealed class ConcealmentChecker
     }
 
     /// <summary>
-    /// Whether the default foliage cluster, drawn at the feet of the character, covers every zone of a composed
-    /// frame: what makes "fail closed" safe.
+    /// Whether a part of a composed frame reaches into a zone: the outline of the part and the polygon of the zone
+    /// have a point in common. The polygon of a zone is convex (<see cref="RigStructure"/> refuses another).
     /// </summary>
     /// <param name="pose">The frame.</param>
-    /// <param name="scale">Device pixels for one logical pixel.</param>
-    public bool DefaultFoliageCoversEveryZone(RigPose pose, double scale)
+    /// <param name="zoneIndex">The index of the zone in the rig.</param>
+    /// <param name="placed">The part, as the frame placed it.</param>
+    public bool ReachesInto(RigPose pose, int zoneIndex, in PlacedPart placed)
     {
         ArgumentNullException.ThrowIfNull(pose);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(scale);
-        CheckedPixels = 0;
-        var count = 0;
-        foreach (var shape in DefaultFoliage.Shapes)
+        var zone = pose.Rig.Zones[zoneIndex];
+        var part = pose.Rig.Parts[placed.PartIndex];
+        var points = zone.Points.Count / 2;
+        if (polygon.Length < zone.Points.Count)
         {
-            AddCover(ref count, Affine.Translation(shape.X, shape.Y), shape.Shape, shape.Width, shape.Height);
+            polygon = new double[zone.Points.Count];
         }
 
-        for (var index = 0; index < pose.Rig.Zones.Count; index++)
+        // The zone in the space of the part, where the part is a rectangle about the origin or the unit circle.
+        var toPart = placed.Transform.Invert().Then(pose.ZoneTransform(zoneIndex));
+        var unitX = part.Shape == PartShape.Ellipse ? part.Width / 2 : 1;
+        var unitY = part.Shape == PartShape.Ellipse ? part.Height / 2 : 1;
+        for (var point = 0; point < points; point++)
         {
-            if (!Covered(pose.Rig.Zones[index], pose.ZoneTransform(index), count, scale, 1))
+            polygon[point * 2] = toPart.ApplyX(zone.Points[point * 2], zone.Points[(point * 2) + 1]) / unitX;
+            polygon[(point * 2) + 1] = toPart.ApplyY(zone.Points[point * 2], zone.Points[(point * 2) + 1]) / unitY;
+        }
+
+        return part.Shape == PartShape.Ellipse
+            ? PolygonMeetsUnitCircle(points)
+            : PolygonMeetsRectangle(points, part.Width / 2, part.Height / 2);
+    }
+
+    private bool Plain(RigPose pose, ConcealmentZone zone, int zoneIndex, double scale, int insetPixels)
+    {
+        var rig = pose.Rig;
+        var carrier = -1;
+        for (var index = 0; index < pose.Parts.Length; index++)
+        {
+            if (string.Equals(rig.Parts[pose.Parts[index].PartIndex].Id, zone.On, StringComparison.Ordinal))
+            {
+                carrier = index;
+            }
+        }
+
+        if (carrier < 0)
+        {
+            return false;
+        }
+
+        var on = pose.Parts[carrier];
+        var body = rig.Parts[on.PartIndex];
+        for (var index = 0; index < pose.Parts.Length; index++)
+        {
+            if (index == carrier)
+            {
+                continue;
+            }
+
+            var placed = pose.Parts[index];
+            var part = rig.Parts[placed.PartIndex];
+            var smooth = part.Role == PartRole.Body && (placed.Depth < on.Depth || part.Colour == body.Colour);
+            if (!smooth && ReachesInto(pose, zoneIndex, placed))
+            {
+                return false;
+            }
+        }
+
+        var count = 0;
+        AddCover(ref count, on.Transform, body.Shape, body.Width, body.Height);
+        return Covered(zone, pose.ZoneTransform(zoneIndex), count, scale, insetPixels);
+    }
+
+    private bool PolygonMeetsRectangle(int points, double halfWidth, double halfHeight)
+    {
+        // Two convex shapes are apart exactly when a line along a side of one of them separates them.
+        double left = double.PositiveInfinity, right = double.NegativeInfinity, top = double.PositiveInfinity, bottom = double.NegativeInfinity;
+        for (var point = 0; point < points; point++)
+        {
+            left = Math.Min(left, polygon[point * 2]);
+            right = Math.Max(right, polygon[point * 2]);
+            top = Math.Min(top, polygon[(point * 2) + 1]);
+            bottom = Math.Max(bottom, polygon[(point * 2) + 1]);
+        }
+
+        if (left >= halfWidth - Touch || right <= Touch - halfWidth || top >= halfHeight - Touch || bottom <= Touch - halfHeight)
+        {
+            return false;
+        }
+
+        for (int current = 0, previous = points - 1; current < points; previous = current++)
+        {
+            var normalX = polygon[(current * 2) + 1] - polygon[(previous * 2) + 1];
+            var normalY = polygon[previous * 2] - polygon[current * 2];
+            var length = Math.Sqrt((normalX * normalX) + (normalY * normalY));
+            if (length == 0)
+            {
+                continue;
+            }
+
+            double least = double.PositiveInfinity, most = double.NegativeInfinity;
+            for (var point = 0; point < points; point++)
+            {
+                var along = ((polygon[point * 2] * normalX) + (polygon[(point * 2) + 1] * normalY)) / length;
+                least = Math.Min(least, along);
+                most = Math.Max(most, along);
+            }
+
+            var reach = ((Math.Abs(normalX) * halfWidth) + (Math.Abs(normalY) * halfHeight)) / length;
+            if (least >= reach - Touch || most <= Touch - reach)
             {
                 return false;
             }
         }
 
         return true;
+    }
+
+    private bool PolygonMeetsUnitCircle(int points)
+    {
+        // The circle and the polygon meet when the centre lies in the polygon or a side comes nearer than the radius.
+        var inside = true;
+        var sign = 0;
+        for (int current = 0, previous = points - 1; current < points; previous = current++)
+        {
+            double ax = polygon[previous * 2], ay = polygon[(previous * 2) + 1];
+            double bx = polygon[current * 2], by = polygon[(current * 2) + 1];
+            double edgeX = bx - ax, edgeY = by - ay;
+            var cross = (edgeX * -ay) - (edgeY * -ax);
+            if (cross != 0)
+            {
+                if (sign != 0 && Math.Sign(cross) != sign)
+                {
+                    inside = false;
+                }
+
+                sign = Math.Sign(cross);
+            }
+
+            var squared = (edgeX * edgeX) + (edgeY * edgeY);
+            var along = squared > 0 ? Math.Clamp(-((ax * edgeX) + (ay * edgeY)) / squared, 0, 1) : 0;
+            var nearX = ax + (edgeX * along);
+            var nearY = ay + (edgeY * along);
+            if (Math.Sqrt((nearX * nearX) + (nearY * nearY)) < 1 - Touch)
+            {
+                return true;
+            }
+        }
+
+        return inside;
     }
 
     private void AddCover(ref int count, in Affine transform, PartShape shape, double width, double height)

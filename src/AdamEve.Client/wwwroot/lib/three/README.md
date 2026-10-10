@@ -1,7 +1,8 @@
 # Three.js, vendored
 
-For the trial of a second renderer (`docs/spike-threejs.md`). Fetched by `js/render-three.js` only when that
-renderer is chosen and the browser has WebGL; never part of the first load.
+For the renderer of the garden (design, section 7.1 and decision D18; `docs/spike-threejs.md` has the history).
+Fetched by `js/render-three.js` when a player enters the garden and the browser has WebGL 2; never by the title or
+the reader, so never part of the first load.
 
 - Version: 0.185.1 (release r185), MIT licence (`LICENSE.txt`, the `LICENSE` of the package).
 - Source: the official npm registry tarball, `https://registry.npmjs.org/three/-/three-0.185.1.tgz`, whose

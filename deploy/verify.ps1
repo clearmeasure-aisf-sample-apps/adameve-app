@@ -19,8 +19,9 @@
        fetched and compared.
     5. The first load as the app sends it: the files a first visit asks for, fetched again with Accept-Encoding: br,
        the bytes of the answers added up. Above 3.0 MB the step fails, and so it does when no answer came as
-       brotli. Of the three ICU data files the largest counts. The files only the Three.js renderer of the trial asks
-       for are fetched and checked like the others and added up apart: a first visit does not ask for them.
+       brotli. Of the three ICU data files the largest counts. The files only the garden asks for (the modules that
+       draw it and Three.js) are fetched and checked like the others and added up apart: the title does not ask for
+       them.
     6. The nodes file, when the context names one: the app as the one node of the environment, with its paths.
 
     Nothing is written to standard error: a deployment takes an error line for a failure.
@@ -191,7 +192,7 @@ Test-That "$($files.Count) files are served as the build made them (size and SHA
 
 Write-Host '==> The first load, as the app sends it'
 $neverAsked = '^404\.html$'
-$onDemand = '^(js/render-three\.js|lib/three/.+)$'
+$onDemand = '^(js/.+|lib/three/.+)$'
 $later = 0L
 $laterCount = 0
 $total = 0L
