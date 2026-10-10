@@ -37,6 +37,16 @@ public static class RenderList
     /// <summary>Header: 1 while the player is between two tiles.</summary>
     public const int Moving = 9;
 
+    /// <summary>
+    /// Header: where the characters stand, two numbers for each character in the order of
+    /// <see cref="CharacterShift"/>: the logical pixel of the map under its feet (x, then y). A renderer with depth
+    /// stands the flat figure there; the canvas renderer does not read it.
+    /// </summary>
+    public const int Anchors = 10;
+
+    /// <summary>How many characters the header has an anchor for.</summary>
+    public const int AnchorCount = 2;
+
     /// <summary>The length of the header.</summary>
     public const int HeaderLength = 16;
 
@@ -57,6 +67,13 @@ public static class RenderList
 
     /// <summary>Flag: the entry is part of the default foliage cluster of a frame that failed closed.</summary>
     public const int FailClosed = 2;
+
+    /// <summary>
+    /// Flags: the bits from this one on say whose part the entry is: 0 for scenery, otherwise the number of the
+    /// character (1 for the first anchor, 2 for the second). The parts of a character, its companion foliage and
+    /// its fail-closed cluster all carry it, so a renderer with depth keeps them in one plane.
+    /// </summary>
+    public const int CharacterShift = 2;
 
     /// <summary>The most entries a frame may hold.</summary>
     public const int Capacity = 480;

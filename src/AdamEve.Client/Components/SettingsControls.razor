@@ -1,4 +1,5 @@
 @using AdamEve.Client.Game
+@using AdamEve.Core.Game
 @using AdamEve.Core.Saves
 @implements IDisposable
 @inject GameSession Session
@@ -20,8 +21,32 @@
     <input type="checkbox" data-testid="sound" checked="@Session.Settings.Sound" @onchange="SoundChanged" />
     <span>@GameText.Sound</span>
 </label>
+@if (RendererTrialShown)
+{
+@* Temporary, for the trial of the Three.js renderer (docs/spike-threejs.md): kept for the tab only, never saved. *@
+<fieldset class="game-setting" data-testid="renderer-trial">
+    <legend>@GameText.RendererTrial</legend>
+    @foreach (var (kind, label) in Renderers)
+    {
+        <label class="game-choice">
+            <input type="radio" name="renderer" data-testid="renderer-@RendererTrial.NameOf(kind)" checked="@(Session.Renderer == kind)" @onchange="() => Session.SetRenderer(kind)" />
+            <span>@label</span>
+        </label>
+    }
+</fieldset>
+}
 
 @code {
+    /// <summary>Whether the temporary choice of the renderer is offered: in the garden, which is what it changes.</summary>
+    [Parameter]
+    public bool RendererTrialShown { get; set; }
+
+    private static readonly (RendererKind Kind, string Label)[] Renderers =
+    [
+        (RendererKind.Canvas, GameText.RendererCanvas),
+        (RendererKind.Three, GameText.RendererThree),
+    ];
+
     private static readonly (TextSize Size, string Label)[] Sizes =
     [
         (TextSize.S, GameText.TextSizeSmall),
@@ -33,6 +58,7 @@
     protected override void OnInitialized()
     {
         Session.LoadSettings();
+        Session.LoadRenderer();
         Session.Changed += Render;
     }
 

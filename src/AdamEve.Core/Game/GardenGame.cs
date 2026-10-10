@@ -288,7 +288,7 @@ public sealed class GardenGame
             {
                 if (actor.Pose.Rig.Parts[placed.PartIndex].Role == PartRole.Occluder)
                 {
-                    Write(list, ref count, Atlas.PartId(actor.RigIndex, placed.PartIndex), origin.Then(placed.Transform), RenderList.OccluderLayer);
+                    Write(list, ref count, Atlas.PartId(actor.RigIndex, placed.PartIndex), origin.Then(placed.Transform), RenderList.OccluderLayer | CharacterBits(actor));
                 }
             }
 
@@ -297,7 +297,7 @@ public sealed class GardenGame
                 for (var shape = 0; shape < DefaultFoliage.Shapes.Count; shape++)
                 {
                     var cluster = DefaultFoliage.Shapes[shape];
-                    Write(list, ref count, Atlas.DefaultFoliageId(shape), origin.Then(Affine.Translation(cluster.X, cluster.Y)), RenderList.OccluderLayer | RenderList.FailClosed);
+                    Write(list, ref count, Atlas.DefaultFoliageId(shape), origin.Then(Affine.Translation(cluster.X, cluster.Y)), RenderList.OccluderLayer | RenderList.FailClosed | CharacterBits(actor));
                 }
             }
         }
@@ -312,7 +312,15 @@ public sealed class GardenGame
         list[RenderList.Facing] = (int)walker.Facing;
         list[RenderList.ExposedFrames] = ExposedFrames;
         list[RenderList.Moving] = walker.Moving ? 1 : 0;
+        foreach (var actor in actors)
+        {
+            list[RenderList.Anchors + (actor.RigIndex * 2)] = (actor.X + 0.5) * size;
+            list[RenderList.Anchors + (actor.RigIndex * 2) + 1] = FeetY(actor);
+        }
     }
+
+    // Whose part an entry is, for a renderer with depth: the number of the character, from 1.
+    private static int CharacterBits(Actor actor) => (actor.RigIndex + 1) << RenderList.CharacterShift;
 
     private double FeetY(Actor actor) => ((actor.Y + 0.5) * map.TileSize) + FeetBelowCentre;
 
@@ -323,7 +331,7 @@ public sealed class GardenGame
         {
             if (actor.Pose.Rig.Parts[placed.PartIndex].Role != PartRole.Occluder)
             {
-                Write(list, ref count, Atlas.PartId(actor.RigIndex, placed.PartIndex), origin.Then(placed.Transform), 0);
+                Write(list, ref count, Atlas.PartId(actor.RigIndex, placed.PartIndex), origin.Then(placed.Transform), CharacterBits(actor));
             }
         }
     }

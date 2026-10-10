@@ -14,3 +14,9 @@ rights in the Authorized Version are vested in the Crown and administered under 
 patentee, Cambridge University Press. This project is a free game that quotes three chapters.
 
 This wording is a proposal and has not been reviewed (docs/design.md, section 11, question 3).
+
+Three.js
+
+src/AdamEve.Client/wwwroot/lib/three holds Three.js 0.185.1 (three.module.min.js and three.core.min.js), copyright
+2010-2026 three.js authors, under the MIT License (LICENSE.txt in that folder). It is unchanged, and it is loaded
+only by the trial of a second renderer (docs/spike-threejs.md).

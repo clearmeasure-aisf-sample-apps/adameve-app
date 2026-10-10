@@ -434,4 +434,57 @@ public class GardenGameTests
         atlas.SpriteId(TileKind.Grass).ShouldBe(-1);
         numbers.Length.ShouldBe(1 + atlas.Count + (6 * Enumerable.Range(0, atlas.Count).Sum(id => atlas.Shapes(id).Count)));
     }
+
+    [Test]
+    public void Frame_TheRenderList_ShouldSayWhereEachCharacterStandsAndWhosePartEachEntryIs()
+    {
+        var browser = new StubBrowser();
+        var garden = browser.Garden;
+        var adam = garden.Map.Spawn("adam");
+        var woman = garden.Map.Spawn("woman");
+
+        var entries = browser.Entries().ToList();
+
+        browser.List[RenderList.Anchors].ShouldBe((adam.X + 0.5) * 32);
+        browser.List[RenderList.Anchors + 1].ShouldBe(((adam.Y + 0.5) * 32) + 8);
+        browser.List[RenderList.Anchors + 2].ShouldBe((woman.X + 0.5) * 32);
+        browser.List[RenderList.Anchors + 3].ShouldBe(((woman.Y + 0.5) * 32) + 8);
+        (RenderList.Anchors + (RenderList.AnchorCount * 2)).ShouldBeLessThanOrEqualTo(RenderList.HeaderLength);
+        foreach (var entry in entries)
+        {
+            var character = entry.Flags >> RenderList.CharacterShift;
+            var sprite = Enum.GetValues<TileKind>().Any(kind => browser.Game.Atlas.SpriteId(kind) == entry.AtlasId);
+            character.ShouldBe(sprite ? 0 : entry.AtlasId < garden.Adam.Parts.Count ? 1 : 2);
+        }
+
+        entries.Count(entry => entry.Flags >> RenderList.CharacterShift == 1).ShouldBeGreaterThan(garden.Adam.Parts.Count(part => part.Role == PartRole.Occluder));
+        entries.Count(entry => entry.Flags >> RenderList.CharacterShift == 2).ShouldBeGreaterThan(garden.Woman.Parts.Count(part => part.Role == PartRole.Occluder));
+    }
+
+    [Test]
+    public void Frame_ACharacterWhoseFoliageIsMissing_ShouldMarkTheDefaultFoliageAsPartOfThatCharacter()
+    {
+        var garden = StubMap.Shipped();
+        var bare = StubMap.With(garden.Adam, parts: garden.Adam.Parts.Where(part => part.Role != PartRole.Occluder));
+
+        var browser = new StubBrowser(adam: bare);
+
+        browser.Entries().Where(entry => (entry.Flags & RenderList.FailClosed) != 0).ShouldAllBe(entry => entry.Flags >> RenderList.CharacterShift == 1);
+    }
+
+    [Test]
+    public void Frame_ThePlayerWalking_ShouldMoveItsAnchorWithIt()
+    {
+        var open = OpenGround(StubMap.Shipped().Map);
+        var browser = new StubBrowser(SaveAt(open.X, open.Y));
+        var before = browser.List[RenderList.Anchors];
+
+        browser.Frame(pressed: InputBlock.Right);
+        browser.Frames(8);
+
+        browser.Game.Moving.ShouldBeTrue();
+        browser.List[RenderList.Anchors].ShouldBeGreaterThan(before);
+        browser.List[RenderList.Anchors].ShouldBeLessThan(before + 32);
+        browser.List[RenderList.Anchors + 1].ShouldBe(((open.Y + 0.5) * 32) + 8);
+    }
 }
