@@ -149,7 +149,7 @@ unchanged. The number that matters has to be read on a real mid-range phone on t
 ## What a real move would cost
 
 - **Files.** `render.js` would go, or stay as the fallback for browsers without WebGL 2 (then both are maintained
-  and both tested). `render-three.js` (about 560 lines now) would grow: the fruit's glow, particles, the light of
+  and both tested). `render-three.js` (about 740 lines now, 110 of them the copied input adapters) would grow: the fruit's glow, particles, the light of
   God's presence, the cherubims and the sword. `GardenGame.Compose`, `RenderList`, `AtlasCatalog` and
   `PlaceholderArt` change if the camera changes. `ConcealmentChecker` changes if the figures stop being flat.
   `GameInterop`, `GameSession`, `Garden.razor`: small. The title and the days of creation draw with SVG and are not
