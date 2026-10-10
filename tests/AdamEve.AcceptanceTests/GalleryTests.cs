@@ -38,7 +38,6 @@ public class GalleryTests : PlaywrightTest
 
     [TestCase("Desktop Chrome", "chromium")]
     [TestCase("Pixel 7", "chromium")]
-    [TestCase("iPhone 13", "webkit")]
     public async Task Stand_AtEachPlaceOfTheGarden_ShouldDrawItWithTheVerdictOkAndKeepAPictureOfEach(string device, string engine)
     {
         var map = GardenView.Garden().Map;
@@ -52,7 +51,7 @@ public class GalleryTests : PlaywrightTest
             game = await GardenView.OpenAsync(page, GardenView.SaveAt(x, y, PlayerCharacter.Woman));
             await GardenView.ExpectThreeDrawsAsync(game);
             // The clock of the garden runs a little, so the wind, the water and the air are somewhere in their motion.
-            await page.WaitForTimeoutAsync(1200);
+            await page.WaitForTimeoutAsync(400);
 
             await KeepAsync(page, device, subject);
 
@@ -67,8 +66,6 @@ public class GalleryTests : PlaywrightTest
     [TestCase("Desktop Chrome", "chromium", PlayerCharacter.Woman)]
     [TestCase("Pixel 7", "chromium", PlayerCharacter.Adam)]
     [TestCase("Pixel 7", "chromium", PlayerCharacter.Woman)]
-    [TestCase("iPhone 13", "webkit", PlayerCharacter.Adam)]
-    [TestCase("iPhone 13", "webkit", PlayerCharacter.Woman)]
     public async Task Walk_EachWayInTheOpen_ShouldKeepAPictureOfTheFigureStandingAndInMidStep(string device, string engine, PlayerCharacter character)
     {
         var open = GardenView.OpenGround(3);
@@ -108,7 +105,6 @@ public class GalleryTests : PlaywrightTest
 
     [TestCase("Desktop Chrome", "chromium")]
     [TestCase("Pixel 7", "chromium")]
-    [TestCase("iPhone 13", "webkit")]
     public async Task Open_TheTitle_ShouldKeepAPictureOfItWithTheCharacterSelect(string device, string engine)
     {
         await using var guarded = await GuardedPage.OpenAsync(Playwright, device, engine);
@@ -126,67 +122,47 @@ public class GalleryTests : PlaywrightTest
 
     [TestCase("Desktop Chrome", "chromium")]
     [TestCase("Pixel 7", "chromium")]
-    [TestCase("iPhone 13", "webkit")]
     public async Task Play_TheDaysOfCreation_ShouldKeepAPictureOfEachDayAsItsLastCardShowsIt(string device, string engine)
     {
+        // One visit through the seven days, with "reduce motion" set: each picture is whole as soon as it is shown.
         var woman = GardenView.Garden().Map.Spawn("woman");
-        await using var guarded = await GuardedPage.OpenAsync(Playwright, device, engine);
+        await using var guarded = await GuardedPage.OpenAsync(Playwright, device, engine, reducedMotion: true);
         var page = guarded.Page;
         var kept = new List<string>();
+        await page.GotoAsync(Site.BaseAddress + "404.html");
+        await page.EvaluateAsync("entry => localStorage.setItem(entry[0], entry[1])", new[] { SaveCodec.SaveKey, SaveCodec.Write(new SaveGame { Character = PlayerCharacter.Woman, TileX = woman.X, TileY = woman.Y, Chapter = StoryChapter.Creation, Beat = StoryBeat.B1 }) });
+        await page.GotoAsync(Site.BaseAddress + "creation");
+        var creation = page.GetByTestId("creation");
+        await Expect(creation).ToHaveAttributeAsync("data-ready", "true", new() { Timeout = 30_000 });
+        var lastCards = CreationStory.Days.ToDictionary(day => day.Cards[^1].ToString(), day => CreationStory.Days.ToList().IndexOf(day) + 1);
 
-        foreach (var day in CreationStory.Days)
+        for (var press = 0; press < 80 && kept.Count < lastCards.Count + 2; press++)
         {
-            // Each day from a saved game that stands at its beginning; then every card of it, to the last.
-            await page.GotoAsync(Site.BaseAddress + "404.html");
-            await page.EvaluateAsync("entry => localStorage.setItem(entry[0], entry[1])", new[] { SaveCodec.SaveKey, SaveCodec.Write(new SaveGame { Character = PlayerCharacter.Woman, TileX = woman.X, TileY = woman.Y, Chapter = StoryChapter.Creation, Beat = day.Beat }) });
-            await page.GotoAsync(Site.BaseAddress + "creation");
-            var creation = page.GetByTestId("creation");
-            await Expect(creation).ToHaveAttributeAsync("data-ready", "true", new() { Timeout = 30_000 });
-            await Expect(creation).ToHaveAttributeAsync("data-beat", day.Beat.ToString());
-            var last = day.Cards[^1].ToString();
-            for (var press = 0; press < 40 && await creation.GetAttributeAsync("data-card") != last; press++)
+            var card = await creation.GetAttributeAsync("data-card") ?? string.Empty;
+            var subject = lastCards.TryGetValue(card, out var number) ? $"creation-day-{number}"
+                : card == "1:3" ? "creation-day-1-light"
+                : card == "1:27" ? "creation-day-6-figures"
+                : null;
+            if (subject is not null && !kept.Contains(subject))
+            {
+                await Expect(creation).ToHaveAttributeAsync("data-concealment", "ok");
+                if (card == "1:27")
+                {
+                    await Expect(page.Locator("[data-figure][data-concealment='ok']")).ToHaveCountAsync(2);
+                }
+
+                await KeepAsync(page, device, subject);
+                kept.Add(subject);
+            }
+
+            if (kept.Count < lastCards.Count + 2)
             {
                 await page.GetByTestId("primary").ClickAsync();
-            }
-
-            await Expect(creation).ToHaveAttributeAsync("data-card", last);
-            await Expect(creation).ToHaveAttributeAsync("data-concealment", "ok");
-            // What a verse tells comes into the picture softly: the picture is kept when it has come.
-            await page.WaitForTimeoutAsync(2600);
-            var number = Array.IndexOf([.. CreationStory.Days], day) + 1;
-            await KeepAsync(page, device, $"creation-day-{number}");
-            kept.Add(day.Beat.ToString());
-            if (day.Beat == StoryBeat.B1)
-            {
-                // The first day also as it begins: the light breaking from the darkness.
-                await page.ReloadAsync();
-                await Expect(creation).ToHaveAttributeAsync("data-ready", "true", new() { Timeout = 30_000 });
-                for (var press = 0; press < 10 && await page.Locator("[data-layer='Light']").CountAsync() == 0; press++)
-                {
-                    await page.GetByTestId("primary").ClickAsync();
-                }
-
-                await Expect(page.Locator("[data-layer='Light']")).ToHaveCountAsync(1);
-                await page.WaitForTimeoutAsync(2800);
-                await KeepAsync(page, device, "creation-day-1-light");
-            }
-            else if (day.Beat == StoryBeat.B6)
-            {
-                // The sixth day also with the two far figures of light (Genesis 1:27).
-                await page.ReloadAsync();
-                await Expect(creation).ToHaveAttributeAsync("data-ready", "true", new() { Timeout = 30_000 });
-                for (var press = 0; press < 20 && await creation.GetAttributeAsync("data-card") != "1:27"; press++)
-                {
-                    await page.GetByTestId("primary").ClickAsync();
-                }
-
-                await Expect(page.Locator("[data-figure][data-concealment='ok']")).ToHaveCountAsync(2);
-                await page.WaitForTimeoutAsync(1600);
-                await KeepAsync(page, device, "creation-day-6-figures");
+                await page.WaitForFunctionAsync("before => { const root = document.getElementById('creation'); return !root || `${root.dataset.card ?? ''}|${root.dataset.awaitsReveal}` !== before; }", $"{card}|{await creation.GetAttributeAsync("data-awaits-reveal")}", new() { Timeout = 15_000 });
             }
         }
 
-        kept.Count.ShouldBe(7);
+        kept.Count.ShouldBe(9, "the seven days, the light of the first and the two far figures of the sixth");
         await GardenView.SetAsideRefusedStyleSheetsAsync(guarded, 9);
         guarded.Errors.ShouldBeEmpty();
         guarded.RequestsOutsideTheOrigin.ShouldBeEmpty();

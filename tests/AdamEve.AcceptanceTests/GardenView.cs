@@ -235,6 +235,27 @@ internal static class GardenView
         return new PixelBox(numbers[0], numbers[1], numbers[2..]);
     }
 
+    /// <summary>
+    /// Every pixel of the picture the renderer drew, as one number computed in the page from all of them, in the
+    /// frame it was drawn in: two frames have the same number exactly when they are the same picture (but for a
+    /// chance of one in four thousand million).
+    /// </summary>
+    public static Task<string> PictureAsync(IPage page) => page.EvaluateAsync<string>(
+        """
+        () => new Promise(resolve => requestAnimationFrame(() => {
+            const canvas = document.getElementById('game-canvas');
+            const copy = document.createElement('canvas');
+            copy.width = canvas.width;
+            copy.height = canvas.height;
+            const context = copy.getContext('2d');
+            context.drawImage(canvas, 0, 0);
+            const data = new Uint32Array(context.getImageData(0, 0, copy.width, copy.height).data.buffer);
+            let sum = 2166136261;
+            for (let at = 0; at < data.length; at++) { sum = Math.imul(sum ^ data[at], 16777619); }
+            resolve(`${copy.width}x${copy.height}:${sum >>> 0}`);
+        }))
+        """);
+
     public static bool Near(int pixel, int colour, int within) =>
         Math.Abs((pixel >> 16) - (colour >> 16)) <= within && Math.Abs(((pixel >> 8) & 255) - ((colour >> 8) & 255)) <= within && Math.Abs((pixel & 255) - (colour & 255)) <= within;
 

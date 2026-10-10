@@ -63,7 +63,7 @@ const CORNER_SEGMENTS = 12;
 // are left out when the camera does not see them, and no second pass over the picture.
 const SHADOW_MAP = 1024;
 const CHUNK_TILES = 16;
-const TUFTS_ON_A_TILE = 5;
+const TUFTS_ON_A_TILE = 4;
 const SHAFT_CAPACITY = 20;
 const GLOW_CAPACITY = 240;
 const POLLEN = 70;
@@ -466,6 +466,8 @@ function buildGround(THREE, g) {
     const t = tools(THREE);
     const ground = gather(THREE);
     const thicket = gather(THREE);
+    // The thicket beyond the map and the forest in it: far from every place a character stands, it casts no shadow.
+    const beyond = gather(THREE);
     const water = gather(THREE);
     const mixer = new THREE.Color(), other = new THREE.Color();
     const kindAt = (x, y) => (x < 0 || y < 0 || x >= g.mapWidth || y >= g.mapHeight ? KIND.thicket : g.tiles[y * g.mapWidth + x]);
@@ -525,15 +527,16 @@ function buildGround(THREE, g) {
             } else if (kind === KIND.thicket) {
                 const middle = [(x + 0.5) * size, 19 + 11 * scatter(x + 977, y + 131), (y + 0.5) * size];
                 const pick = turn => greens[Math.floor(scatter(x * 4 + turn, y) * greens.length)];
-                thicket.triangle(point(nw), point(sw), middle, pick(0));
-                thicket.triangle(point(sw), point(se), middle, pick(1));
-                thicket.triangle(point(se), point(ne), middle, pick(2));
-                thicket.triangle(point(ne), point(nw), middle, pick(3));
+                const outside = x < 0 || y < 0 || x >= g.mapWidth || y >= g.mapHeight;
+                const mass = outside ? beyond : thicket;
+                mass.triangle(point(nw), point(sw), middle, pick(0));
+                mass.triangle(point(sw), point(se), middle, pick(1));
+                mass.triangle(point(se), point(ne), middle, pick(2));
+                mass.triangle(point(ne), point(nw), middle, pick(3));
                 // Beyond the map, to the north, the west and the east: the trees of the forest, as plain masses.
-                const beyond = x < 0 || y < 0 || x >= g.mapWidth;
-                if (beyond && y < g.mapHeight && scatter(x + 53, y + 71) < 0.3) {
+                if (outside && y < g.mapHeight && scatter(x + 53, y + 71) < 0.3) {
                     const tall = 24 + 22 * scatter(x, y + 300), wide = 13 + 7 * scatter(x + 300, y);
-                    thicket.solid(t.mass(0, x * 131 + y, 0.2), t.at(middle[0], middle[1] + tall * 0.6, middle[2], wide, tall, wide), forest);
+                    beyond.solid(t.mass(0, x * 131 + y, 0.2), t.at(middle[0], middle[1] + tall * 0.6, middle[2], wide, tall, wide), forest);
                 }
             } else {
                 ground.corner(point(nw), landColour(style, nw)); ground.corner(point(sw), landColour(style, sw)); ground.corner(point(se), landColour(style, se));
@@ -566,6 +569,9 @@ function buildGround(THREE, g) {
     thicketMesh.receiveShadow = true;
     thicketMesh.castShadow = true;
     thicketMesh.frustumCulled = false;
+    const beyondMesh = new THREE.Mesh(beyond.build(), g.solidMaterial);
+    beyondMesh.receiveShadow = true;
+    beyondMesh.frustumCulled = false;
 
     // The water: one sheet over the bed, which takes the light and the shadows like everything else and has its
     // own slow crests, glints and rings (WATER_COLOUR).
@@ -586,7 +592,7 @@ function buildGround(THREE, g) {
     waterMesh.receiveShadow = true;
     waterMesh.frustumCulled = false;
     waterMesh.renderOrder = 1;
-    g.scene.add(groundMesh, thicketMesh, waterMesh);
+    g.scene.add(groundMesh, thicketMesh, beyondMesh, waterMesh);
 }
 
 // What lies on the ground and is not planted: the flat stones of a crossing, a few to a tile with clear water
