@@ -58,32 +58,84 @@ public class RigStructureTests
     }
 
     [Test]
-    public void Violations_HairOnABoneThatIsNotTheHeadOrTheHairBoneOfTheHead_ShouldNameIt()
+    public void Violations_HairOnABoneThatIsNotTheHeadOrAHairBoneOfTheHead_ShouldNameIt()
     {
         var woman = StubMap.Shipped().Woman;
         var fall = woman.Parts.Single(part => part.Id == "hair-fall");
         var onTheTorso = StubMap.With(woman, parts: woman.Parts.Select(part => part.Id == "hair-fall" ? part with { Bone = "torso" } : part));
-        var loose = new Rig(woman.Id, [.. woman.Bones.Select(bone => bone.Id == RigStructure.HairBone ? bone with { Parent = "torso" } : bone)], woman.Parts, woman.Zones, woman.Concealment);
         var eye = StubMap.With(woman, parts: woman.Parts.Select(part => part.Id == "eyeL" ? part with { Bone = RigStructure.HairBone } : part));
+        var mouth = StubMap.With(woman, parts: woman.Parts.Select(part => part.Id == "mouthL" ? part with { Bone = "torso" } : part));
+        var ear = StubMap.With(woman, parts: woman.Parts.Select(part => part.Id == "earR" ? part with { Bone = "torso" } : part));
 
         fall.Bone.ShouldBe(RigStructure.HairBone);
-        woman.Bones.Single(bone => bone.Id == RigStructure.HairBone).Parent.ShouldBe(RigStructure.Head);
         RigStructure.Violations(onTheTorso).ShouldHaveSingleItem().ShouldContain("\"hair-fall\"");
-        RigStructure.Violations(loose).ShouldNotBeEmpty();
-        RigStructure.Violations(loose).ShouldAllBe(violation => violation.Contains("not bound to the head", StringComparison.Ordinal));
         RigStructure.Violations(eye).ShouldHaveSingleItem().ShouldContain("\"eyeL\"");
+        RigStructure.Violations(mouth).ShouldHaveSingleItem().ShouldContain("\"mouthL\"");
+        RigStructure.Violations(ear).ShouldHaveSingleItem().ShouldContain("\"earR\"");
     }
 
     [Test]
-    public void Parts_TheShippedRigs_ShouldKeepEveryPartThatCoversTheChestOnTheHeadItselfAndEveryRoundedPartOutOfTheZonesButTheBody()
+    public void Bones_TheShippedRigs_ShouldHangEveryHairBoneOnTheHeadItself()
     {
-        // The hair that moves on its own bone (the fall behind the back, the crown) covers nothing that has to be
-        // covered: what covers the woman's chest is bound to the head itself and moves only with it.
-        var woman = StubMap.Shipped().Woman;
+        // Added on 2026-10-10 for the second art pass: locks that move apart from each other hang on three bones
+        // of the head, and on nothing else.
+        foreach (var rig in ShippedRigs())
+        {
+            var hairBones = rig.Bones.Where(bone => bone.Id.StartsWith(RigStructure.HairBone, StringComparison.Ordinal)).ToList();
 
-        woman.Parts.Where(part => part.Id.StartsWith("hair-front", StringComparison.Ordinal)).ShouldAllBe(part => part.Bone == RigStructure.Head);
-        woman.Parts.Where(part => part.Bone == RigStructure.HairBone).Select(part => part.Id).ShouldBe(["hair-fall", "hair-crown"]);
-        woman.Parts.Where(part => part.Bone == RigStructure.HairBone).ShouldAllBe(part => part.Role == PartRole.Hair);
+            hairBones.Select(bone => bone.Id).ShouldBe(["hair", "hairL", "hairR"]);
+            hairBones.ShouldAllBe(bone => bone.Parent == RigStructure.Head && RigStructure.IsHairBone(rig, bone.Id));
+            rig.Bones.Where(bone => !hairBones.Contains(bone)).ShouldAllBe(bone => !RigStructure.IsHairBone(rig, bone.Id));
+            rig.Parts.Where(part => RigStructure.IsHairBone(rig, part.Bone)).ShouldAllBe(part => part.Role == PartRole.Hair);
+        }
+    }
+
+    [TestCase("hair")]
+    [TestCase("hairL")]
+    [TestCase("hairR")]
+    public void Violations_AHairBoneThatDoesNotHangOnTheHead_ShouldNameEveryPartOnIt(string loosened)
+    {
+        var woman = StubMap.Shipped().Woman;
+        var loose = new Rig(woman.Id, [.. woman.Bones.Select(bone => bone.Id == loosened ? bone with { Parent = "torso" } : bone)], woman.Parts, woman.Zones, woman.Concealment);
+
+        var violations = RigStructure.Violations(loose);
+
+        violations.Count.ShouldBe(woman.Parts.Count(part => part.Bone == loosened));
+        violations.ShouldNotBeEmpty();
+        violations.ShouldAllBe(violation => violation.Contains("not bound to the head", StringComparison.Ordinal));
+        RigStructure.IsHairBone(loose, loosened).ShouldBeFalse();
+        RigStructure.IsHairBone(woman, "torso").ShouldBeFalse();
+        RigStructure.IsHairBone(woman, "hairless").ShouldBeFalse();
+    }
+
+    [Test]
+    public void FirstExposedZone_TheWomanWithoutEveryLockThatMoves_ShouldStillHaveHerChestCoveredInEveryFrame()
+    {
+        // The hair that moves on its own bones (the fall behind the back, the locks beside the face, the lighter
+        // locks) covers nothing that has to be covered: what covers the woman's chest is bound to the head itself
+        // and moves only with it. Without every moving lock, every frame still passes.
+        var garden = StubMap.Shipped();
+        var woman = garden.Woman;
+        var still = StubMap.With(woman, parts: woman.Parts.Where(part => !RigStructure.IsHairBone(woman, part.Bone)));
+        var checker = new ConcealmentChecker();
+        var pose = new RigPose(still);
+
+        woman.Parts.Count(part => RigStructure.IsHairBone(woman, part.Bone)).ShouldBeGreaterThan(10);
+        woman.Parts.Where(part => part.Id.StartsWith("hair-front", StringComparison.Ordinal) || part.Id.StartsWith("hair-collar", StringComparison.Ordinal)).ShouldAllBe(part => part.Bone == RigStructure.Head);
+        foreach (var animation in garden.Animations)
+        {
+            foreach (var facing in Facings.All)
+            {
+                for (var frame = 0; frame <= animation.Duration * 60; frame++)
+                {
+                    pose.Sample(animation, frame / 60.0, facing, Covering.None);
+                    foreach (var scale in new[] { 0.75, 1, 2, 2.86, 4 })
+                    {
+                        checker.FirstExposedZone(pose, scale).ShouldBe(-1, $"{animation.Id} frame {frame} facing {facing} at {scale}x");
+                    }
+                }
+            }
+        }
     }
 
     [Test]
@@ -94,13 +146,16 @@ public class RigStructureTests
     }
 
     [Test]
-    public void AllowedParts_TheList_ShouldBeTheSevenBlocksOfTheBodyTheEyesTheApronAndTheCoat()
+    public void AllowedParts_TheList_ShouldBeTheBlocksOfTheBodyWithNeckFeetAndEarsTheEyesTheMouthTheApronAndTheCoat()
     {
+        // The neck, the feet, the ears and the two halves of the mouth were added on 2026-10-10 for the second art
+        // pass: head, face, posture and proportion, never detail of the body. None lies near a zone (the tests of
+        // the pelvic zone prove it for every frame).
         RigStructure.AllowedParts.Where(part => part.Value == PartRole.Body).Select(part => part.Key)
-            .ShouldBe(["head", "torso", "hips", "armL", "armR", "legL", "legR"], ignoreOrder: true);
-        RigStructure.AllowedParts.Where(part => part.Value == PartRole.Detail).Select(part => part.Key).ShouldBe(["eyeL", "eyeR"], ignoreOrder: true);
+            .ShouldBe(["head", "torso", "hips", "armL", "armR", "legL", "legR", "neck", "footL", "footR", "earL", "earR"], ignoreOrder: true);
+        RigStructure.AllowedParts.Where(part => part.Value == PartRole.Detail).Select(part => part.Key).ShouldBe(["eyeL", "eyeR", "mouthL", "mouthR"], ignoreOrder: true);
         RigStructure.AllowedParts.Where(part => part.Value is PartRole.Apron or PartRole.Coat).Select(part => part.Key).ShouldBe(["apron", "coat"], ignoreOrder: true);
-        RigStructure.AllowedParts.Count.ShouldBe(11);
+        RigStructure.AllowedParts.Count.ShouldBe(18);
         RigStructure.ZoneCarriers.ShouldBe(new Dictionary<string, string> { ["pelvis"] = "hips", ["chest"] = "torso" }, ignoreOrder: true);
     }
 
@@ -141,6 +196,14 @@ public class RigStructureTests
     [TestCase("shadow", PartRole.Hair, 0x2B1D16, "head", Description = "hair without the name of hair")]
     [TestCase("hair-low", PartRole.Hair, 0x2B1D16, "hip", Description = "hair that is not bound to the head")]
     [TestCase("hair-red", PartRole.Hair, 0xC0392B, "head", Description = "hair in another colour")]
+    [TestCase("hair-fair", PartRole.Hair, 0x8A6A4A, "head", Description = "hair lighter than the sheen of dark hair")]
+    [TestCase("hair-lip", PartRole.Hair, 0xA5604A, "head", Description = "hair in the colour of the mouth")]
+    [TestCase("mouthM", PartRole.Detail, 0xA5604A, "head", Description = "a third part of the mouth")]
+    [TestCase("mouth", PartRole.Detail, 0xA5604A, "hip", Description = "a mouth that is not on the list, and not on the head")]
+    [TestCase("eyeM", PartRole.Detail, 0xA5604A, "head", Description = "a third eye, in the colour of the mouth")]
+    [TestCase("footM", PartRole.Body, 0xE2B994, "hip", Description = "a third foot")]
+    [TestCase("neck2", PartRole.Body, 0xE2B994, "torso", Description = "a second part on the torso")]
+    [TestCase("earM", PartRole.Body, 0xC99A73, "head", Description = "a third ear")]
     [TestCase("hair-skin", PartRole.Hair, 0xE2B994, "head", Description = "hair in the colour of the skin")]
     [TestCase("apron2", PartRole.Apron, 0x4E9A4A, "hip", Description = "a second apron")]
     public void Violations_ARigWithAPartThatIsNotOnTheLists_ShouldNameIt(string id, PartRole role, int colour, string bone)
@@ -166,6 +229,39 @@ public class RigStructureTests
         var changed = StubMap.With(adam, parts: adam.Parts.Select(part => part.Id == "torso" ? part with { Colour = colour } : part));
 
         RigStructure.Violations(changed).ShouldHaveSingleItem().ShouldContain("\"torso\"");
+    }
+
+    [Test]
+    public void Violations_AnEyeInTheColourOfTheMouthOrAMouthInTheColourOfTheEyes_ShouldNameIt()
+    {
+        foreach (var rig in ShippedRigs())
+        {
+            var eye = StubMap.With(rig, parts: rig.Parts.Select(part => part.Id == "eyeR" ? part with { Colour = RigStructure.Mouth } : part));
+            var mouth = StubMap.With(rig, parts: rig.Parts.Select(part => part.Id == "mouthR" ? part with { Colour = RigStructure.Hair } : part));
+            var skin = StubMap.With(rig, parts: rig.Parts.Select(part => part.Id == "mouthL" ? part with { Colour = RigStructure.Skin } : part));
+
+            rig.Parts.Where(part => part.Id.StartsWith("eye", StringComparison.Ordinal)).ShouldAllBe(part => part.Colour == RigStructure.Hair);
+            rig.Parts.Where(part => part.Id.StartsWith("mouth", StringComparison.Ordinal)).ShouldAllBe(part => part.Colour == RigStructure.Mouth);
+            RigStructure.Violations(eye).ShouldHaveSingleItem().ShouldContain("\"eyeR\"");
+            RigStructure.Violations(mouth).ShouldHaveSingleItem().ShouldContain("\"mouthR\"");
+            RigStructure.Violations(skin).ShouldHaveSingleItem().ShouldContain("\"mouthL\"");
+        }
+    }
+
+    [TestCase(RigStructure.HairLock)]
+    [TestCase(RigStructure.HairSheen)]
+    [TestCase(RigStructure.Mouth)]
+    public void Violations_ABodyPartInTheColourOfALockOfHairOrOfTheMouth_ShouldNameIt(int colour)
+    {
+        foreach (var rig in ShippedRigs())
+        {
+            foreach (var id in new[] { "torso", "hips", "neck", "footL", "earR" })
+            {
+                var changed = StubMap.With(rig, parts: rig.Parts.Select(part => part.Id == id ? part with { Colour = colour } : part));
+
+                RigStructure.Violations(changed).ShouldHaveSingleItem().ShouldContain($"\"{id}\"");
+            }
+        }
     }
 
     [Test]
@@ -234,8 +330,11 @@ public class RigStructureTests
     public void AllowedColours_EachKind_ShouldBeTheColoursOfTheDesign()
     {
         RigStructure.AllowedColours(PartRole.Body).ShouldBe([0xE2B994, 0xC99A73]);
-        RigStructure.AllowedColours(PartRole.Hair).ShouldBe([0x2B1D16]);
-        RigStructure.AllowedColours(PartRole.Detail).ShouldBe([0x2B1D16]);
+        // Dark hair (decision D7) in three tones since 2026-10-10: the hair, a lock that catches a little light and
+        // the sheen on it. Each is darker than the skin in shade by far: none can be taken for skin.
+        RigStructure.AllowedColours(PartRole.Hair).ShouldBe([0x2B1D16, 0x43301F, 0x5E452D]);
+        RigStructure.AllowedColours(PartRole.Hair).ShouldAllBe(colour => (colour >> 16) < 0x60 && ((colour >> 8) & 255) < 0x48 && (colour & 255) < 0x30);
+        RigStructure.AllowedColours(PartRole.Detail).ShouldBe([0x2B1D16, 0xA5604A]);
         RigStructure.AllowedColours(PartRole.Apron).ShouldBe([0x4E9A4A]);
         RigStructure.AllowedColours(PartRole.Coat).ShouldBe([0x8A6A4A]);
     }
@@ -259,8 +358,8 @@ public class RigStructureTests
                         {
                             if (rig.Parts[placed.PartIndex].Role == PartRole.Detail)
                             {
-                                // The feet are at 0 and y grows downward: the chin is 32 high.
-                                placed.Transform.F.ShouldBeLessThan(-34, $"{rig.Id} {animation.Id} frame {frame} facing {facing}");
+                                // The feet are at 0 and y grows downward: the chin is 38 high.
+                                placed.Transform.F.ShouldBeLessThan(-39, $"{rig.Id} {animation.Id} frame {frame} facing {facing}");
                             }
                         }
                     }

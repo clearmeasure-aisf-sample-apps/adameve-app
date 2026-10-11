@@ -55,8 +55,7 @@ and takes its `wwwroot` (a standalone client gets its import map only from its o
 
 ## Modesty, hard rule M1 (design, sections 1, 5.3, 5.6)
 
-Decision D4, amended by D18 on 2026-10-10 (the amendment is the session's reading of D18, to be confirmed by
-Jeffrey before final art is made). The rule, in every sprite frame, pose, animation frame, portrait, cutscene shot
+Decision D4, amended by D18 on 2026-10-10 (the amendment is confirmed by Jeffrey on 2026-10-10 ("All good", then "Do it" to promoting it)). The rule, in every sprite frame, pose, animation frame, portrait, cutscene shot
 and camera angle:
 
 - **The figures are never anatomical.** They are for young readers. No rig part, in any frame, facing or variant,

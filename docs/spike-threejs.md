@@ -27,8 +27,7 @@ What changed with the decision:
 - **Parallax.** Where the haze closes, a far layer (sky and two ridges of hills, made by code) hangs before the
   camera and slides less than the farthest ground. It is layered parallax, not a place of the map: at this tilt a
   true horizon is never in the picture. It stands still under `prefers-reduced-motion`.
-- **Rule M1 without the foliage** (the session's reading of D18, to be confirmed by Jeffrey before final art is
-  made; design, sections 1, 5.3 and 5.6). The figures are never anatomical; the woman's long hair covers her chest;
+- **Rule M1 without the foliage** (confirmed by Jeffrey on 2026-10-10 ("All good", then "Do it" to promoting it); design, sections 1, 5.3 and 5.6). The figures are never anatomical; the woman's long hair covers her chest;
   the checks are structural, by coverage and by the rendered image. Under perspective a figure is still flat: one
   plane that stands on the feet and faces the camera squarely (it leans back by the camera's tilt, so it is
   parallel to the picture). The camera then maps the plane to the screen by one scale and a shift, which a unit

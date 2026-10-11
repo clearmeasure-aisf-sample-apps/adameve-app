@@ -181,8 +181,8 @@ public class ConcealmentTests
             rig.Parts.ShouldAllBe(part => !part.Id.Contains("foliage", StringComparison.OrdinalIgnoreCase) && !part.Id.Contains("leaf", StringComparison.OrdinalIgnoreCase));
             rig.Parts.Where(part => part.Role == PartRole.Hair).ShouldNotBeEmpty();
             // To the head itself, or to the bone of the head on which the hair that moves hangs (RigStructure).
-            rig.Parts.Where(part => part.Role == PartRole.Hair).ShouldAllBe(part => part.Bone == "head" || part.Bone == "hair");
-            rig.Bones.Single(bone => bone.Id == "hair").Parent.ShouldBe("head");
+            rig.Parts.Where(part => part.Role == PartRole.Hair).ShouldAllBe(part => part.Bone == "head" || part.Bone == "hair" || part.Bone == "hairL" || part.Bone == "hairR");
+            rig.Bones.Where(bone => bone.Id.StartsWith("hair", StringComparison.Ordinal)).ShouldAllBe(bone => bone.Parent == "head");
             rig.Zones.Single(zone => zone.Id == "pelvis").Bone.ShouldBe("hip");
         }
 
@@ -202,9 +202,9 @@ public class ConcealmentTests
             var top = hair.Min(placed => placed.Transform.F - (woman.Parts[placed.PartIndex].Height / 2));
             var bottom = hair.Max(placed => placed.Transform.F + (woman.Parts[placed.PartIndex].Height / 2));
 
-            // The feet are at 0 and y grows downward: the head is 49 high, the waist 22, the pelvic zone begins at 20.
-            top.ShouldBeLessThan(-45, $"facing {facing}");
-            bottom.ShouldBeInRange(-23, -20.5, $"facing {facing}");
+            // The feet are at 0 and y grows downward: the head is 53 high, the waist 23, the pelvic zone begins at 21.
+            top.ShouldBeLessThan(-49, $"facing {facing}");
+            bottom.ShouldBeInRange(-24, -21.5, $"facing {facing}");
             (bottom - top).ShouldBeGreaterThan(24, $"facing {facing}: the hair is more than half as long as she is tall");
             hair.Count.ShouldBeGreaterThanOrEqualTo(3, $"facing {facing}");
         }
@@ -218,9 +218,12 @@ public class ConcealmentTests
         foreach (var rig in ShippedRigs())
         {
             rig.Parts.Where(part => part.Role == PartRole.Body).ShouldAllBe(part => skin.Contains(part.Colour));
-            rig.Parts.Where(part => part.Role == PartRole.Hair).ShouldAllBe(part => part.Colour == 0x2B1D16);
+            // Dark hair, in its three tones (the hair, a lock that catches the light, the sheen): nothing else.
+            int[] hair = [0x2B1D16, 0x43301F, 0x5E452D];
+            rig.Parts.Where(part => part.Role == PartRole.Hair).ShouldAllBe(part => hair.Contains(part.Colour));
+            rig.Parts.Where(part => part.Role == PartRole.Hair).ShouldContain(part => part.Colour == 0x2B1D16);
             rig.Parts.Select(part => part.Role).Distinct().ShouldBeSubsetOf([PartRole.Body, PartRole.Hair, PartRole.Apron, PartRole.Coat, PartRole.Detail]);
-            rig.Parts.Where(part => part.Role == PartRole.Detail).Select(part => part.Id).ShouldBe(["eyeL", "eyeR"]);
+            rig.Parts.Where(part => part.Role == PartRole.Detail).Select(part => part.Id).ShouldBe(["eyeL", "eyeR", "mouthL", "mouthR"]);
         }
     }
 
@@ -266,6 +269,7 @@ public class ConcealmentTests
                             // In the zone: the hips, and beneath them the tops of the legs. Nothing else, ever.
                             part.Role.ShouldBe(PartRole.Body, $"{rig.Id} {animation.Id} at {time:0.000} s facing {facing}: {part.Id}");
                             part.Id.ShouldBeOneOf("hips", "legL", "legR");
+                            part.Role.ShouldNotBe(PartRole.Hair);
                             (part.Id == "hips" || placed.Depth < hips.Depth).ShouldBeTrue($"{rig.Id} {animation.Id} at {time:0.000} s facing {facing}: {part.Id} lies over the hips");
                             judged++;
                         }
@@ -329,8 +333,10 @@ public class ConcealmentTests
     public void FirstExposedZone_TheWomansHairGrownDownIntoThePelvicZone_ShouldReportThePelvicZone()
     {
         var woman = StubMap.Shipped().Woman;
-        var longer = StubMap.With(woman, parts: woman.Parts.Select(part => part.Id == "hair-fall"
-            ? part with { Height = part.Height + 6, Front = part.Front! with { Y = part.Front.Y + 3 }, Side = part.Side! with { Y = part.Side.Y + 3 }, Back = part.Back! with { Y = part.Back.Y + 3 } }
+        // The fall behind her back, in each view the part that is it there: six longer.
+        static PartPlacement? Lower(PartPlacement? placement) => placement is null ? null : placement with { Y = placement.Y + 3 };
+        var longer = StubMap.With(woman, parts: woman.Parts.Select(part => part.Id is "hair-fall" or "hair-fall-side" or "hair-fall-back"
+            ? part with { Height = part.Height + 6, Front = Lower(part.Front), Side = Lower(part.Side), Back = Lower(part.Back) }
             : part));
 
         foreach (var facing in Facings.All)
@@ -355,10 +361,12 @@ public class ConcealmentTests
     public void FirstExposedZone_AnOpeningOfOnePixelInTheHair_ShouldReportTheChestZone()
     {
         var woman = StubMap.Shipped().Woman;
-        var parted = StubMap.With(woman, parts: woman.Parts.Select(part => part.Id switch
+        // The two inner locks drawn apart until half a logical pixel lies open between them, down the middle of
+        // her chest, and the two locks of the neckline, which cross there, taken away.
+        var parted = StubMap.With(woman, parts: woman.Parts.Where(part => !part.Id.StartsWith("hair-collar", StringComparison.Ordinal)).Select(part => part.Id switch
         {
-            "hair-front-left" => part with { Width = 10, Front = part.Front! with { X = -5.25 } },
-            "hair-front-right" => part with { Width = 10, Front = part.Front! with { X = 5.25 } },
+            "hair-front-inner-left" => part with { Width = 5.5, Front = part.Front! with { X = -3 } },
+            "hair-front-inner-right" => part with { Width = 5.5, Front = part.Front! with { X = 3 } },
             _ => part,
         }));
 
@@ -436,9 +444,11 @@ public class ConcealmentTests
     public void FirstExposedZone_TheWomansFrontHairTooShortForTheZone_ShouldReportTheChestZone()
     {
         var woman = StubMap.Shipped().Woman;
+        // Every lock that reaches her chest from the front ends at her shoulders.
         var bobbed = StubMap.With(woman, parts: woman.Parts
-            .Where(part => !part.Id.StartsWith("hair-tip", StringComparison.Ordinal))
-            .Select(part => part.Id.StartsWith("hair-front", StringComparison.Ordinal) ? part with { Height = 6, Front = part.Front! with { Y = 8 } } : part));
+            .Select(part => part.Role == PartRole.Hair && part.Front is { } front && front.Y + (part.Height / 2) > 11 && front.Depth > 4.5
+                ? part with { Height = 6, Front = front with { Y = 8, Rotation = 0 } }
+                : part));
 
         var exposed = FirstExposed(bobbed, Facing.S);
 

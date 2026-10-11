@@ -24,9 +24,10 @@
 // Rule M1. A character is never a body in space. Every part the game lists for it is a flat shape in ONE plane that
 // stands on the character's feet and faces the camera squarely: the plane is parallel to the picture, so the figure
 // on the screen is the figure the game judged, larger or smaller and nothing else, and it is never seen edge-on.
-// The parts are painted in the order of the list. Every pixel of every part of one character has one and the same
-// depth (written by its material, not left to the geometry), so scenery hides all of a figure's parts at a pixel
-// or none of them: it cannot remove a cover and leave what it covers. The figures take no light and no shadow.
+// The parts are painted in the order of the list: all the parts of one character are the triangles of one mesh, in
+// that order, each in the one flat colour of its part. Every pixel of every part of one character has one and the
+// same depth (written by its material, not left to the geometry), so scenery hides all of a figure's parts at a
+// pixel or none of them: it cannot remove a cover and leave what it covers. The figures take no light and no shadow.
 //
 // Three.js itself is asked for only here, when this renderer attaches and the browser has WebGL 2. Nothing here asks
 // any other origin.
@@ -83,19 +84,28 @@ const NEAR_RIDGE_DISTANCE = 3;
 const LIGHT = {
     haze: 0xE2E8C6, sun: 0xFFE3B4, sky: 0xC4DCFF, earth: 0x6C8C52, skyTop: 0x8CC2EE, skyLow: 0xF6E7BE,
     farRidge: 0x8FB0C8, midRidge: 0x74A6A4, nearRidge: 0x5B9777, cloud: 0xFFFDF4, cloudShade: 0xE9D9C4,
-    sand: 0xDCCB9B, bed: 0x2D6F78, shallow: 0x8FD6CE, deep: 0x2F8FB2, stone: 0xC9C0AC, stoneShade: 0x8F887A, moss: 0x7FA85A,
+    sand: 0xDCCB9B, bed: 0x2D6F78, shallow: 0x8FD6CE, deep: 0x2F8FB2, springBed: 0x6FC9C0, springDeep: 0x0F5F96, springShallow: 0x7FE0D6, springSurface: 0x1E86BE, stone: 0xC9C0AC, stoneShade: 0x8F887A, moss: 0x7FA85A,
     bark: 0x7A5A3A, barkShade: 0x54402E, shaft: 0xFFE9B0, pollen: 0xFFF1C4, firefly: 0xE8FF9A, mist: 0xFFFFFF,
 };
 
-const FIGURE_VERTEX = "void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }";
-// One flat colour, and one depth for every pixel of every part of a character.
+// A character is one mesh: the corners of its parts in the order they are painted, each with the colour of its part.
+const FIGURE_PARTS = 72;
+const FIGURE_CORNERS = FIGURE_PARTS * ELLIPSE_SEGMENTS * 3;
+const FIGURE_VERTEX = `
+attribute vec3 aColour;
+varying vec3 vColour;
+void main() {
+    vColour = aColour;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`;
+// The flat colour of the part, and one depth for every pixel of every part of a character.
 const FIGURE_FRAGMENT = `
-uniform vec3 uColour;
 uniform vec3 uHazeColour;
 uniform float uHaze;
 uniform float uDepth;
+varying vec3 vColour;
 void main() {
-    gl_FragColor = vec4(mix(uColour, uHazeColour, uHaze), 1.0);
+    gl_FragColor = vec4(mix(vColour, uHazeColour, uHaze), 1.0);
     gl_FragDepth = uDepth;
     #include <colorspace_fragment>
 }`;
@@ -132,6 +142,7 @@ const WIND_MOVE = `
 const WATER_PARS = `
 uniform float uTime;
 uniform vec3 uRings[${ANCHOR_COUNT}];
+uniform vec3 uSpring;
 uniform vec3 uSkyTint;
 uniform vec3 uShadeTint;
 varying vec3 vWater;`;
@@ -147,10 +158,15 @@ const WATER_COLOUR = `
         rings += uRings[ring].z * sin(away * 0.6 - uTime * 4.2) * exp(-away * 0.045);
     }
     crest += rings;
+    // The spring wells up in the middle of its pool (uSpring: x, z and strength): rings that spread from there,
+    // and over the source itself a patch of water that is lifted into the light.
+    float well = distance(vWater.xz, uSpring.xy);
+    crest += uSpring.z * 0.85 * sin(well * 0.36 - uTime * 2.1) * exp(-well * 0.024);
     float lit = smoothstep(-0.25, 0.65, crest);
     diffuseColor.rgb = mix(mix(diffuseColor.rgb, uShadeTint, 0.34), diffuseColor.rgb + uSkyTint * 0.2, lit);
     float glint = smoothstep(0.78, 0.98, crest);
     diffuseColor.rgb += vec3(1.0, 0.96, 0.84) * glint * 0.55;
+    diffuseColor.rgb += vec3(0.72, 0.95, 0.9) * uSpring.z * exp(-well * well * 0.0045) * (0.2 + 0.08 * sin(uTime * 3.1) * sin(uTime * 1.7 + 1.0));
     diffuseColor.a = mix(diffuseColor.a, 1.0, glint * 0.7);`;
 
 let game = null;
@@ -458,6 +474,49 @@ function pattern(THREE, side, valueAt) {
     return texture;
 }
 
+// The spring (design, section 5.1: the source of the river that waters the garden): the water that has water all
+// around it. Where its middle lies, and how far its pool reaches from there; null for a map without one.
+function springOf(g) {
+    const size = g.tileSize;
+    const kindAt = (x, y) => (x < 0 || y < 0 || x >= g.mapWidth || y >= g.mapHeight ? KIND.thicket : g.tiles[y * g.mapWidth + x]);
+    let sumX = 0, sumZ = 0, count = 0;
+    for (let y = 0; y < g.mapHeight; y++) {
+        for (let x = 0; x < g.mapWidth; x++) {
+            let wet = 0;
+            for (let dy = -1; dy <= 1; dy++) {
+                for (let dx = -1; dx <= 1; dx++) {
+                    wet += kindAt(x + dx, y + dy) === KIND.water ? 1 : 0;
+                }
+            }
+            if (wet === 9) {
+                sumX += (x + 0.5) * size;
+                sumZ += (y + 0.5) * size;
+                count++;
+            }
+        }
+    }
+    return count === 0 ? null : { x: sumX / count, z: sumZ / count, reach: size * 1.9 };
+}
+
+// The stones of one tile of a crossing: where each lies, how wide and how high it is, how many sides it has and how
+// it is turned. No two are alike, and together they fill the tile, so the way across is plain to see.
+function stonesOf(g, x, y) {
+    const size = g.tileSize;
+    const centreX = (x + 0.5) * size, centreZ = (y + 0.5) * size;
+    const stones = [];
+    for (let stone = 0; stone < 4; stone++) {
+        const first = scatter(x * 4 + stone, y + 17), second = scatter(x + 29, y * 4 + stone), third = scatter(x * 4 + stone + 61, y * 4 + stone + 7);
+        const big = (stone + x + y) % 2 === 0;
+        const radius = big ? 7.2 + 1.6 * first : 4.9 + 1.5 * first;
+        stones.push({
+            x: centreX + (stone % 2 ? 7.4 : -7.4) + (second - 0.5) * 4.5 + (big ? 0 : (stone % 2 ? 1.2 : -1.2)),
+            z: centreZ + (stone < 2 ? -7.4 : 7.4) + (third - 0.5) * 4.5,
+            radius, top: 0.5 + 1.7 * third, sides: 6 + Math.floor(first * 4), turn: second * 6.28, wide: 0.86 + 0.3 * third, tone: first, moss: scatter(x * 4 + stone, y + 83) < 0.22,
+        });
+    }
+    return stones;
+}
+
 // The ground from the tiles. No tile shows its edge: the colour of the ground changes smoothly from place to place,
 // the shore of the river wanders a little and slopes down to a bed under the water, the grass darkens under the
 // thicket, and the thicket rises from its edge as an uneven mass. Beyond the map the thicket goes on, with the
@@ -473,6 +532,29 @@ function buildGround(THREE, g) {
     const mixer = new THREE.Color(), other = new THREE.Color();
     const kindAt = (x, y) => (x < 0 || y < 0 || x >= g.mapWidth || y >= g.mapHeight ? KIND.thicket : g.tiles[y * g.mapWidth + x]);
     const wet = kind => kind === KIND.water || kind === KIND.crossing;
+    // A tile of the thicket that lies south of open ground lies between that ground and the viewer, who always
+    // looks north: there the thicket is a low hedge in the light, never a dark wall before the picture. How many
+    // tiles north of it the open ground begins; 0 when none does.
+    const southOf = new Map();
+    const southOfOpen = (x, y) => {
+        const key = (y + 64) * 4096 + x + 64;
+        let rows = southOf.get(key);
+        if (rows === undefined) {
+            rows = 0;
+            for (let north = 1; north <= 12 && rows === 0; north++) {
+                for (let across = -2; across <= 2; across++) {
+                    if (kindAt(x + across, y - north) !== KIND.thicket) {
+                        rows = north;
+                    }
+                }
+            }
+            southOf.set(key, rows);
+        }
+        return rows;
+    };
+    const spring = g.spring;
+    // How near the middle of the spring a place is: 1 there, 0 at the rim of its pool and beyond.
+    const inSpring = (x, z) => (spring ? Math.max(0, 1 - Math.hypot(x - spring.x, z - spring.z) / spring.reach) : 0);
     // A corner of the grid, shared by the four tiles around it: where it lies and how high.
     const corners = new Map();
     const cornerOf = (column, row) => {
@@ -484,12 +566,14 @@ function buildGround(THREE, g) {
             const thickAround = kinds.filter(kind => kind === KIND.thicket).length;
             corner = { x: column * size, y: 0, z: row * size, wet: wetAround, thick: thickAround };
             if (wetAround === 4) {
-                corner.y = RIVER_BED;
+                // The bed of the river; the pool of the spring is deeper toward its middle.
+                corner.y = RIVER_BED - 7 * inSpring(corner.x, corner.z);
             } else if (wetAround > 0) {
                 corner.x += (scatter(column * 3 + 1, row) - 0.5) * 9;
                 corner.z += (scatter(column, row * 3 + 2) - 0.5) * 9;
             } else if (thickAround === 4) {
-                corner.y = 13 + 9 * scatter(column, row);
+                const low = southOfOpen(column, row) > 0 || southOfOpen(column - 1, row - 1) > 0;
+                corner.y = low ? 3 + 4 * scatter(column, row) : 13 + 9 * scatter(column, row);
             }
             corners.set(key, corner);
         }
@@ -503,12 +587,18 @@ function buildGround(THREE, g) {
         if (corner.wet > 0) {
             mixer.lerp(other.setHex(LIGHT.sand), 0.55);
         } else if (corner.thick > 0) {
-            mixer.lerp(other.setHex(0x3F7F4A), 0.5);
+            mixer.lerp(other.setHex(0x4C8F4E), 0.45);
         }
         return hexOf(mixer);
     };
     const point = corner => [corner.x, corner.y, corner.z];
     const greens = [g.ground[KIND.thicket * 4], g.ground[KIND.thicket * 4 + 1], 0x47884A, 0x356F45, 0x5A9A52];
+    // The hedge before the picture: lighter, in the greens of the meadow, and on it low bushes whose tops catch the
+    // light of the sun, a blossom here and there.
+    const hedgeGreens = [0x5FA452, 0x6BAE58, 0x57994F, 0x74B55C, 0x639F54];
+    const bush = { top: 0xB4DC78, bottom: 0x3C8049, own: 0.09, sway: [1, 13, 0.7] };
+    const bushDeep = { top: 0x93C968, bottom: 0x357547, own: 0.09, sway: [1, 13, 0.7] };
+    const petals = [{ top: 0xFBC4D4, bottom: 0xE58BA8, own: 0.03 }, { top: 0xFFF7E4, bottom: 0xF0DCB4, own: 0.03 }, { top: 0xFFE08A, bottom: 0xEEB04E, own: 0.03 }];
     const forest = { top: 0x4C8F55, bottom: 0x1C4C3C, own: 0.12 };
 
     for (let y = -THICKET_BEYOND; y < g.mapHeight + THICKET_BEYOND; y++) {
@@ -518,18 +608,67 @@ function buildGround(THREE, g) {
             const nw = cornerOf(x, y), sw = cornerOf(x, y + 1), se = cornerOf(x + 1, y + 1), ne = cornerOf(x + 1, y);
             if (wet(kind)) {
                 // The bed: sand at the shore, dark under the deep water. And the water over it, clear at the shore.
-                const bed = corner => (corner.wet === 4 ? LIGHT.bed : LIGHT.sand);
+                // In the pool of the spring the water is clear: a pale bed at its rim, the blue of depth in its middle.
+                const bed = corner => {
+                    const deep = inSpring(corner.x, corner.z);
+                    return corner.wet < 4 ? LIGHT.sand : deep > 0 ? hexOf(mixer.setHex(LIGHT.springBed).lerp(other.setHex(LIGHT.springDeep), Math.min(1, deep * 1.5))) : LIGHT.bed;
+                };
                 ground.corner(point(nw), bed(nw)); ground.corner(point(sw), bed(sw)); ground.corner(point(se), bed(se));
                 ground.corner(point(nw), bed(nw)); ground.corner(point(se), bed(se)); ground.corner(point(ne), bed(ne));
-                const surface = corner => [[corner.x, WATER_LEVEL, corner.z], corner.wet === 4 ? g.ground[style] : LIGHT.shallow, corner.wet === 4 ? 0.86 : 0.5];
+                const surface = corner => {
+                    const deep = inSpring(corner.x, corner.z);
+                    if (deep > 0) {
+                        const hex = hexOf(mixer.setHex(corner.wet === 4 ? LIGHT.springShallow : LIGHT.shallow).lerp(other.setHex(LIGHT.springSurface), Math.min(1, deep * 1.4)));
+                        return [[corner.x, WATER_LEVEL, corner.z], hex, corner.wet === 4 ? 0.5 + 0.34 * deep : 0.36];
+                    }
+                    return [[corner.x, WATER_LEVEL, corner.z], corner.wet === 4 ? g.ground[style] : LIGHT.shallow, corner.wet === 4 ? 0.86 : 0.5];
+                };
                 for (const corner of [nw, sw, se, nw, se, ne]) {
                     water.corner(...surface(corner));
                 }
+                if (kind === KIND.crossing) {
+                    // The water parts around each stone: a pale ring at the waterline, drawn out the way the
+                    // river runs (along the row when there is water to the east or the west, otherwise southward).
+                    const across = wet(kindAt(x - 1, y)) && wet(kindAt(x + 1, y)) && !(kindAt(x, y - 1) === KIND.water && kindAt(x, y + 1) === KIND.water);
+                    for (const stone of stonesOf(g, x, y)) {
+                        const steps = 12;
+                        const ring = (step, out) => {
+                            const angle = step / steps * Math.PI * 2;
+                            const reach = stone.radius + 0.9 + out * 3.6;
+                            let ringX = Math.cos(angle) * reach, ringZ = Math.sin(angle) * reach;
+                            if (across) {
+                                ringX = ringX * (1 + 0.45 * out) + 2.6 * out;
+                            } else {
+                                ringZ = ringZ * (1 + 0.45 * out) + 2.6 * out;
+                            }
+                            return [stone.x + ringX, WATER_LEVEL + 0.12, stone.z + ringZ];
+                        };
+                        for (let step = 0; step < steps; step++) {
+                            water.corner(ring(step, 0), 0xFFFFFF, 0.62); water.corner(ring(step, 1), 0xFFFFFF, 0); water.corner(ring(step + 1, 1), 0xFFFFFF, 0);
+                            water.corner(ring(step, 0), 0xFFFFFF, 0.62); water.corner(ring(step + 1, 1), 0xFFFFFF, 0); water.corner(ring(step + 1, 0), 0xFFFFFF, 0.62);
+                        }
+                    }
+                }
             } else if (kind === KIND.thicket) {
-                const middle = [(x + 0.5) * size, 19 + 11 * scatter(x + 977, y + 131), (y + 0.5) * size];
-                const pick = turn => greens[Math.floor(scatter(x * 4 + turn, y) * greens.length)];
+                const rows = southOfOpen(x, y);
+                const middle = [(x + 0.5) * size, rows > 0 ? 6.5 + 4.5 * scatter(x + 977, y + 131) : 19 + 11 * scatter(x + 977, y + 131), (y + 0.5) * size];
+                const palette = rows > 0 ? hedgeGreens : greens;
+                const pick = turn => palette[Math.floor(scatter(x * 4 + turn, y) * palette.length)];
                 const outside = x < 0 || y < 0 || x >= g.mapWidth || y >= g.mapHeight;
                 const mass = outside ? beyond : thicket;
+                // On the hedge before the picture: low round bushes, thicker near the open ground.
+                for (let index = 0; index < (rows === 0 || rows > 9 ? 0 : rows <= 4 ? 2 : 1); index++) {
+                    const first = scatter(x * 2 + index, y + 211), second = scatter(x + 223, y * 2 + index), third = scatter(x * 2 + index + 5, y * 2 + index + 227);
+                    const bushX = middle[0] + (first - 0.5) * 24, bushZ = middle[2] + (second - 0.5) * 24;
+                    const wide = 9 + 6 * third, high = 5.5 + 3.5 * first;
+                    mass.solid(t.mass(index === 0 && rows <= 2 ? 1 : 0, x * 37 + y * 11 + index, 0.2), t.at(bushX, middle[1] - 2 + high * 0.55, bushZ, wide, high, wide * 0.85, 0, third * 6.28), third < 0.5 ? bush : bushDeep);
+                    if (third > 0.62) {
+                        for (let bloom = 0; bloom < 3; bloom++) {
+                            const [bloomX, bloomY, bloomZ] = onCrown([bushX, middle[1] - 2 + high * 0.55, bushZ], [wide, high, wide * 0.85], scatter(x + bloom, y + 229), 0.5 + 0.5 * scatter(x + 233, y + bloom));
+                            mass.solid(t.gem(1.5), t.at(bloomX, bloomY, bloomZ, 1, 1.1, 1, 0, bloom), { ...petals[Math.floor(first * petals.length)], sway: bush.sway });
+                        }
+                    }
+                }
                 mass.triangle(point(nw), point(sw), middle, pick(0));
                 mass.triangle(point(sw), point(se), middle, pick(1));
                 mass.triangle(point(se), point(ne), middle, pick(2));
@@ -579,6 +718,7 @@ function buildGround(THREE, g) {
     g.waterMaterial.onBeforeCompile = shader => {
         shader.uniforms.uTime = g.time;
         shader.uniforms.uRings = g.rings;
+        shader.uniforms.uSpring = { value: new THREE.Vector3(g.spring ? g.spring.x : 0, g.spring ? g.spring.z : 0, g.spring ? 1 : 0) };
         shader.uniforms.uSkyTint = { value: new THREE.Color(LIGHT.sky) };
         shader.uniforms.uShadeTint = { value: new THREE.Color(0x1F5C5A) };
         shader.vertexShader = shader.vertexShader
@@ -601,23 +741,62 @@ function buildProps(THREE, g) {
     const size = g.tileSize;
     const t = tools(THREE);
     const still = gather(THREE);
+    const mixer = new THREE.Color(), other = new THREE.Color();
     for (let y = 0; y < g.mapHeight; y++) {
         for (let x = 0; x < g.mapWidth; x++) {
             const kind = g.tiles[y * g.mapWidth + x];
             const colour = g.ground[kind * 4 + 2];
             const centreX = (x + 0.5) * size, centreZ = (y + 0.5) * size;
             if (kind === KIND.crossing) {
-                for (let stone = 0; stone < 4; stone++) {
-                    const stoneX = centreX + (stone % 2 ? 7.5 : -7.5) + (scatter(x * 4 + stone, y) - 0.5) * 4;
-                    const stoneZ = centreZ + (stone < 2 ? -7.5 : 7.5) + (scatter(x, y * 4 + stone) - 0.5) * 4;
-                    const radius = 6.2 + 1.8 * scatter(x + stone, y + 17);
-                    const height = 1.3 - RIVER_BED;
-                    still.solid(new THREE.CylinderGeometry(radius - 1.2, radius + 1, height, 7), t.at(stoneX, RIVER_BED + height / 2, stoneZ, 1, 1, 0.9, 0, stone * 0.9),
-                        { top: colour, bottom: LIGHT.stoneShade, own: 0.05 });
+                for (const stone of stonesOf(g, x, y)) {
+                    // Each stone: wet and dark where the water reaches it, with a ledge at the waterline; dry, pale and
+                    // a little warm or cool above; moss on a few.
+                    const waterline = WATER_LEVEL + 1.1;
+                    const dry = mixer.setHex(colour).lerp(other.setHex(stone.tone < 0.5 ? 0xDCCFB2 : 0xB4BAB6), Math.abs(stone.tone - 0.5)).getHex();
+                    still.solid(new THREE.CylinderGeometry(stone.radius + 0.5, stone.radius + 1.6, waterline - RIVER_BED, stone.sides), t.at(stone.x, (waterline + RIVER_BED) / 2, stone.z, stone.wide, 1, 1.9 - stone.wide, 0, stone.turn),
+                        { top: 0x857F70, bottom: LIGHT.stoneShade, own: 0.04 });
+                    still.solid(new THREE.CylinderGeometry(stone.radius - 1.5, stone.radius - 0.3, stone.top + 0.6 - waterline, stone.sides), t.at(stone.x, (stone.top + 0.6 + waterline) / 2, stone.z, stone.wide, 1, 1.9 - stone.wide, 0, stone.turn),
+                        { top: dry, bottom: LIGHT.stoneShade, cap: stone.moss ? LIGHT.moss : undefined, own: 0.05 });
                 }
             } else if (kind === KIND.restingPlace) {
                 still.solid(new THREE.CylinderGeometry(12.5, 14, 1.8, 12), t.at(centreX, 0.9, centreZ), { top: colour, bottom: 0xB9A56E, own: 0.03 });
             }
+        }
+    }
+
+    // What grows only at the spring: pale pebbles on its bed, which the clear water shows; lilies that float on its
+    // pool, some in bloom; and at its rim, standing in the water, irises the colour of the evening sky. None of
+    // it stands on ground a character walks on.
+    const spring = g.spring;
+    if (spring) {
+        const around = (index, salt, from, to) => {
+            const angle = (index + 0.8 * scatter(Math.round(index * 4), salt)) / 12 * Math.PI * 2 + salt, out = from + (to - from) * scatter(Math.round(index * 4), salt + 1);
+            return [spring.x + Math.cos(angle) * out, spring.z + Math.sin(angle) * out * 0.92];
+        };
+        for (let pebble = 0; pebble < 16; pebble++) {
+            const [x, z] = around(pebble * 0.75, 307, 8, 44);
+            still.solid(t.gem(1), t.at(x, RIVER_BED - 4.5 + 2 * scatter(pebble, 311), z, 2.6 + 2 * scatter(pebble, 313), 1.6, 2.4, 0, pebble), { top: 0xF2EEDC, bottom: 0x9FB4B0, own: 0.05 });
+        }
+        for (let lily = 0; lily < 9; lily++) {
+            const [x, z] = around(lily * 1.33, 331, 26, 48);
+            const wide = 3.4 + 1.8 * scatter(lily, 337);
+            still.solid(new THREE.CylinderGeometry(wide, wide * 0.9, 0.5, 9), t.at(x, WATER_LEVEL + 0.3, z, 1, 1, 0.9, 0, lily * 1.9), { top: lily % 2 ? 0x6DB65C : 0x58A557, bottom: 0x2F6F45, own: 0.04 });
+            if (lily % 3 !== 1) {
+                still.solid(t.gem(1.9), t.at(x + 0.6, WATER_LEVEL + 1.7, z - 0.4, 1, 0.8, 1, 0, lily), { top: 0xFFFFFF, bottom: lily % 2 ? 0xF7BCD3 : 0xFFE9A8, own: 0.02 });
+                still.solid(t.gem(0.7), t.at(x + 0.6, WATER_LEVEL + 2.9, z - 0.4), { top: 0xFFD45C, bottom: 0xF0A63A, own: 0.02 });
+                g.springLights.push([x + 0.6, WATER_LEVEL + 2.4, z - 0.4, 0xFFF6E0, 4.2]);
+            }
+        }
+        for (let iris = 0; iris < 11; iris++) {
+            const [x, z] = around(iris * 1.09, 353, 49, 55);
+            const height = 13 + 7 * scatter(iris, 359);
+            for (let blade = 0; blade < 3; blade++) {
+                const lean = (blade - 1) * 3.2 + (scatter(iris * 3 + blade, 367) - 0.5) * 2;
+                still.leaf([x - 1, -5, z], [x + 1, -5, z], [x + lean, height * (blade === 1 ? 1 : 0.78), z + (blade - 1) * 0.8], [0x3C8662, 0x3C8662, 0xA4DE9C], [0, 0, 1.8]);
+            }
+            still.solid(t.gem(1.7), t.at(x, height + 1.2, z, 1, 1.25, 1, 0, iris), { top: 0xB9AEFF, bottom: 0x6A5BE0, own: 0.04, sway: [height, height + 2, 1.8] });
+            still.solid(t.gem(0.7), t.at(x, height + 0.5, z + 1.2), { top: 0xFFE27A, bottom: 0xF2B544, own: 0.02, sway: [height, height + 2, 1.8] });
+            g.springLights.push([x, height + 1.2, z + 1, 0xC9C2FF, 5]);
         }
     }
 
@@ -803,8 +982,8 @@ function buildAir(THREE, g) {
                 }
             }
             if (kind === KIND.water && wetAround === 9) {
-                for (let puff = 0; puff < 3; puff++) {
-                    g.mist.push({ x: centreX + (scatter(x * 4 + puff, y) - 0.5) * 110, z: centreZ + (scatter(x, y * 4 + puff) - 0.5) * 110, phase: scatter(x + puff, y + 7) * 6.28 });
+                for (let puff = 0; puff < 4; puff++) {
+                    g.mist.push({ x: centreX + (scatter(x * 4 + puff, y) - 0.5) * 120, z: centreZ + (scatter(x, y * 4 + puff) - 0.5) * 110, phase: scatter(x + puff, y + 7) * 6.28, high: scatter(x * 4 + puff, y + 13) });
                 }
             } else if (((kind === KIND.thicket && open > 0) || (kind >= 4 && kind <= 7)) && scatter(x + 5, y + 3) < 0.4) {
                 for (let fly = 0; fly < 2; fly++) {
@@ -817,21 +996,21 @@ function buildAir(THREE, g) {
     }
 }
 
-// The flat shape of a part of a character, as the canvas paints it. An ellipse is a polygon drawn around the
-// ellipse, never inside it, and so is a rounded corner: a cover is never smaller here than the check takes it to be.
+// The flat shape of a part of a character, as the canvas paints it: the corners of its triangles (x, y, x, y, and so
+// on, about the place the part is put, y upward) and its colour. An ellipse is a polygon drawn around the ellipse,
+// never inside it, and so is a rounded corner: a cover is never smaller here than the check takes it to be.
 function flatOf(THREE, image) {
     if (image.flat) {
         return image.flat;
     }
     const shape = image.shapes[0];
-    let geometry;
+    const outline = [];
     if (shape.kind === 1) {
-        geometry = new THREE.PlaneGeometry(shape.width, shape.height);
+        outline.push(shape.width / 2, shape.height / 2, -shape.width / 2, shape.height / 2, -shape.width / 2, -shape.height / 2, shape.width / 2, -shape.height / 2);
     } else if (shape.kind === 2) {
-        // A rectangle with rounded corners: a fan about its middle. Each corner is a polygon drawn around its
-        // quarter circle, as an ellipse is.
+        // A rectangle with rounded corners. Each corner is a polygon drawn around its quarter circle, as an
+        // ellipse is.
         const beyond = shape.round / Math.cos(Math.PI / 4 / CORNER_SEGMENTS) - shape.round;
-        const outline = [];
         for (let corner = 0; corner < 4; corner++) {
             const centreX = (corner === 0 || corner === 3 ? 1 : -1) * (shape.width / 2 - shape.round);
             const centreY = (corner < 2 ? 1 : -1) * (shape.height / 2 - shape.round);
@@ -840,45 +1019,47 @@ function flatOf(THREE, image) {
                 outline.push(centreX + Math.cos(angle) * (shape.round + beyond), centreY + Math.sin(angle) * (shape.round + beyond));
             }
         }
-        const corners = [];
-        for (let index = 0; index < outline.length; index += 2) {
-            const next = (index + 2) % outline.length;
-            corners.push(0, 0, 0, outline[index], outline[index + 1], 0, outline[next], outline[next + 1], 0);
-        }
-        geometry = new THREE.BufferGeometry();
-        geometry.setAttribute("position", new THREE.Float32BufferAttribute(corners, 3));
     } else {
         const around = 1 / Math.cos(Math.PI / ELLIPSE_SEGMENTS);
-        geometry = new THREE.CircleGeometry(1, ELLIPSE_SEGMENTS);
-        geometry.scale(shape.width / 2 * around, shape.height / 2 * around, 1);
+        for (let step = 0; step < ELLIPSE_SEGMENTS; step++) {
+            const angle = step / ELLIPSE_SEGMENTS * Math.PI * 2;
+            outline.push(Math.cos(angle) * shape.width / 2 * around, Math.sin(angle) * shape.height / 2 * around);
+        }
     }
-    geometry.translate(shape.x, -shape.y, 0);
-    image.flat = { geometry, colour: shape.colour };
+    // A fan about the middle of the shape.
+    const corners = [];
+    for (let index = 0; index < outline.length; index += 2) {
+        const next = (index + 2) % outline.length;
+        corners.push(shape.x, -shape.y, shape.x + outline[index], outline[index + 1] - shape.y, shape.x + outline[next], outline[next + 1] - shape.y);
+    }
+    const colour = new THREE.Color(shape.colour);
+    image.flat = { corners: new Float32Array(corners), red: colour.r, green: colour.g, blue: colour.b };
     return image.flat;
 }
 
-// The material of the parts of one character in one colour. It takes no light, no shadow and no texture: the colour
-// of a part is the colour the rig gives it (in the distance, with the haze of the place the figure stands on). It
-// writes the one depth of its character for every pixel, and paints over what was painted before it.
-function figureMaterial(THREE, g, character, colour) {
-    const key = character * 0x1000000 + colour;
-    let material = g.figureMaterials.get(key);
-    if (!material) {
-        const figure = g.figures[character - 1];
-        material = new THREE.ShaderMaterial({
-            uniforms: {
-                uColour: { value: new THREE.Color(colour) },
-                uHazeColour: { value: g.hazeColour },
-                uHaze: figure.haze,
-                uDepth: figure.depth,
-            },
+// The mesh of one character. Its material takes no light, no shadow and no texture: the colour of a part is the
+// colour the rig gives it (in the distance, with the haze of the place the figure stands on). It writes the one
+// depth of its character for every pixel, and paints over what was painted before it.
+function figureMesh(THREE, g, character) {
+    const figure = g.figures[character - 1];
+    if (!figure.mesh) {
+        figure.places = new Float32Array(FIGURE_CORNERS * 3);
+        figure.colours = new Float32Array(FIGURE_CORNERS * 3);
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute("position", new THREE.BufferAttribute(figure.places, 3).setUsage(THREE.DynamicDrawUsage));
+        geometry.setAttribute("aColour", new THREE.BufferAttribute(figure.colours, 3).setUsage(THREE.DynamicDrawUsage));
+        const material = new THREE.ShaderMaterial({
+            uniforms: { uHazeColour: { value: g.hazeColour }, uHaze: figure.haze, uDepth: figure.depth },
             vertexShader: FIGURE_VERTEX,
             fragmentShader: FIGURE_FRAGMENT,
             side: THREE.DoubleSide, transparent: true, depthTest: true, depthWrite: false, fog: false,
         });
-        g.figureMaterials.set(key, material);
+        figure.mesh = new THREE.Mesh(geometry, material);
+        figure.mesh.frustumCulled = false;
+        figure.mesh.visible = false;
+        g.scene.add(figure.mesh);
     }
-    return material;
+    return figure;
 }
 
 // The far layer: the sky with its slow clouds, birds crossing far off, and three ridges of hills whose colour
@@ -998,6 +1179,8 @@ function buildScene(THREE, g) {
     g.sunRight = new THREE.Vector3(0, 1, 0).cross(g.sunDirection).normalize();
     g.sunUp = g.sunDirection.clone().cross(g.sunRight).normalize();
 
+    g.spring = springOf(g);
+    g.warm = new THREE.Color(0xFFE6B4);
     buildGround(THREE, g);
     buildProps(THREE, g);
     buildCover(THREE, g);
@@ -1026,20 +1209,6 @@ function resize() {
     game.renderer.setPixelRatio(game.shell.ratio);
     game.renderer.setSize(game.shell.viewWidth, game.shell.viewHeight, false);
     game.shadowKey = "";
-}
-
-function partMesh(index) {
-    const THREE = game.three;
-    let mesh = game.parts[index];
-    if (!mesh) {
-        mesh = new THREE.Mesh();
-        mesh.matrixAutoUpdate = false;
-        mesh.frustumCulled = false;
-        mesh.renderOrder = 10 + index;
-        game.scene.add(mesh);
-        game.parts[index] = mesh;
-    }
-    return mesh;
 }
 
 // The point of the ground the camera sees at a point of its picture (-1 to 1 across and up).
@@ -1119,10 +1288,25 @@ function air(g, list, tilt, seconds) {
         glow(knowledge[12], 70, knowledge[14] - 6, 80, 0x93A8FF, 0.085 * unrest);
     }
 
-    for (const puff of g.mist) {
-        if (seen(puff.x, puff.z)) {
-            glow(puff.x + 14 * Math.sin(seconds * 0.13 + puff.phase), 9 + 5 * Math.sin(seconds * 0.21 + puff.phase * 2), puff.z + 8 * Math.cos(seconds * 0.1 + puff.phase),
-                46 + 9 * Math.sin(seconds * 0.17 + puff.phase), LIGHT.mist, 0.017);
+    // The mist over the spring catches the light: the puffs toward the sun are warm and bright, those away from it
+    // cool; low over the water lies a pale sheen; the lilies and the irises have a small light of their own, and the
+    // water glints where it wells up.
+    const spring = g.spring;
+    if (spring && seen(spring.x, spring.z)) {
+        for (const puff of g.mist) {
+            const toSun = Math.min(1, Math.max(0, 0.5 - (puff.x - spring.x) / 150));
+            glow(puff.x + 14 * Math.sin(seconds * 0.13 + puff.phase), 8 + 22 * puff.high + 5 * Math.sin(seconds * 0.21 + puff.phase * 2), puff.z + 8 * Math.cos(seconds * 0.1 + puff.phase),
+                34 + 16 * puff.high + 8 * Math.sin(seconds * 0.17 + puff.phase), g.tint.setHex(LIGHT.mist).lerp(g.warm, toSun).getHex(), 0.02 + 0.022 * toSun);
+        }
+        glow(spring.x, 3, spring.z + 6, 92, 0xE4FFF6, 0.05);
+        glow(spring.x, 2, spring.z, 26, 0xFFFFFF, 0.1 + 0.03 * Math.sin(seconds * 1.3));
+        for (const [x, y, z, hex, radius] of g.springLights) {
+            glow(x, y, z, radius, hex, 0.26 + 0.08 * Math.sin(seconds * 0.9 + x));
+        }
+        for (let glint = 0; glint < 14; glint++) {
+            const angle = scatter(glint, 401) * 6.28 + seconds * 0.05, out = 6 + 40 * scatter(glint, 409);
+            const flash = Math.max(0, Math.sin(seconds * (1.6 + scatter(glint, 419)) + glint * 2.4));
+            glow(spring.x + Math.cos(angle) * out, WATER_LEVEL + 0.8, spring.z + Math.sin(angle) * out, 1.5, 0xFFFFFF, 0.75 * flash * flash * flash);
         }
     }
     let flies = 0;
@@ -1251,6 +1435,9 @@ function draw(list, seconds) {
     }
     let parts = 0;
     let shafts = 0;
+    for (const figure of g.figures) {
+        figure.corners = 0;
+    }
     const count = list[0];
     const matrix = g.matrix;
     for (let entry = 0; entry < count; entry++) {
@@ -1285,26 +1472,50 @@ function draw(list, seconds) {
         // The transform is the one the canvas draws the part with; the list's order is the order of painting.
         const feet = list[ANCHORS + (character - 1) * 2 + 1];
         const flat = flatOf(THREE, image);
-        const mesh = partMesh(parts++);
-        mesh.geometry = flat.geometry;
-        mesh.material = figureMaterial(THREE, g, character, flat.colour);
-        mesh.visible = true;
-        mesh.matrix.set(
-            list[at + 1], -list[at + 3], 0, e,
-            -list[at + 2] * cos, list[at + 4] * cos, sin, (feet - f) * cos,
-            list[at + 2] * sin, -list[at + 4] * sin, cos, feet - (feet - f) * sin,
-            0, 0, 0, 1);
-        mesh.matrixWorldNeedsUpdate = true;
+        const figure = figureMesh(THREE, g, character);
+        if (figure.corners === 0) {
+            // The character the list names first is painted first: the one that stands farther north.
+            figure.mesh.renderOrder = 10 + parts;
+        }
+        if ((figure.corners + flat.corners.length / 2) > FIGURE_CORNERS) {
+            continue;
+        }
+        parts++;
+        const a = list[at + 1], b = list[at + 2], c = list[at + 3], d = list[at + 4];
+        const up = (feet - f) * cos, south = feet - (feet - f) * sin;
+        const places = figure.places, colours = figure.colours, corners = flat.corners;
+        let to = figure.corners * 3;
+        for (let from = 0; from < corners.length; from += 2) {
+            const x = corners[from], y = corners[from + 1];
+            places[to] = a * x - c * y + e;
+            places[to + 1] = (d * y - b * x) * cos + up;
+            places[to + 2] = (b * x - d * y) * sin + south;
+            colours[to] = flat.red;
+            colours[to + 1] = flat.green;
+            colours[to + 2] = flat.blue;
+            to += 3;
+        }
+        figure.corners = to / 3;
     }
-    for (let index = parts; index < g.parts.length; index++) {
-        g.parts[index].visible = false;
+    for (const figure of g.figures) {
+        if (figure.mesh) {
+            figure.mesh.visible = figure.corners > 0;
+            figure.mesh.geometry.setDrawRange(0, figure.corners);
+            figure.mesh.geometry.attributes.position.needsUpdate = true;
+            figure.mesh.geometry.attributes.aColour.needsUpdate = true;
+        }
     }
+    g.figureParts = parts;
     for (const scenery of g.scenery) {
         if (scenery) {
             scenery.mesh.count = scenery.count;
             scenery.mesh.visible = scenery.count > 0;
             scenery.mesh.instanceMatrix.needsUpdate = true;
         }
+    }
+    // Light falls on the spring too, through the mist.
+    if (g.spring && Math.abs(g.spring.x - list[EYE_X]) < 620 && g.spring.z < list[EYE_Y] && g.spring.z > list[EYE_Y] - 1100) {
+        shafts = shaftsOf(g, Math.min(shafts, SHAFT_CAPACITY - 2), g.spring.x - 6, g.spring.z + 8, 1.5, 2, tilt, seconds);
     }
     g.shafts.count = shafts;
     g.shafts.visible = shafts > 0;
@@ -1384,12 +1595,12 @@ export async function attach(listView, inputView, tiles, ground, atlas, kinds, c
         // After the four numbers of each of the ten tile kinds, the ground lists the colours of the drifts of flowers.
         driftColours: 40,
         atlas: readAtlas(atlas),
-        scenery: [], parts: [], patches: [], coverMeshes: [], mist: [], fireflies: [], butterflies: [], blossoms: [],
+        scenery: [], patches: [], coverMeshes: [], mist: [], springLights: [], fireflies: [], butterflies: [], blossoms: [],
         time: { value: 0 },
         rings: { value: Array.from({ length: ANCHOR_COUNT }, () => new THREE.Vector3()) },
         scale: new THREE.Vector3(), turn: new THREE.Quaternion(), colour: new THREE.Color(), tint: new THREE.Color(),
-        figures: Array.from({ length: ANCHOR_COUNT }, () => ({ depth: { value: 0 }, haze: { value: 0 } })),
-        figureMaterials: new Map(),
+        figures: Array.from({ length: ANCHOR_COUNT }, () => ({ depth: { value: 0 }, haze: { value: 0 }, mesh: null, corners: 0 })),
+        figureParts: 0,
         matrix: new THREE.Matrix4(), vector: new THREE.Vector3(), corner: new THREE.Vector3(), euler: new THREE.Euler(),
         motion: !reduced.matches, motionSeconds: 0, lastNow: undefined,
         frameRequest: 0, shadowTexel: 1, shadowKey: "", drawCalls: 0, triangles: 0, lastAnchors: new Float64Array(ANCHOR_COUNT * 2),
@@ -1442,14 +1653,6 @@ export function detach() {
             material.dispose();
         }
     });
-    for (const image of g.atlas) {
-        if (image.flat) {
-            image.flat.geometry.dispose();
-        }
-    }
-    for (const material of g.figureMaterials.values()) {
-        material.dispose();
-    }
     g.renderer.dispose();
     if (!g.lost) {
         g.renderer.forceContextLoss();
@@ -1479,7 +1682,7 @@ export function probe(points) {
         wings: g.wings.count,
         seconds: g.motionSeconds,
         anchors: Array.from({ length: ANCHOR_COUNT }, (_, index) => [g.lastAnchors[index * 2], g.lastAnchors[index * 2 + 1]]),
-        parts: g.parts.filter(mesh => mesh.visible).length,
+        parts: g.figureParts,
         parallax: [g.farRidge.position.x * g.shell.viewWidth / 2, g.nearRidge.position.x * g.shell.viewWidth / 2],
         screen: (points ?? []).map(([x, height, y]) => {
             g.vector.set(x, height, y).project(g.camera);

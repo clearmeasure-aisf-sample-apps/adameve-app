@@ -27,6 +27,8 @@ public class GalleryTests : PlaywrightTest
         ("tree-of-life", 28, 27),
         ("tree-of-knowledge", 35, 27),
         ("horizon", 10, 21),
+        ("south-edge", 28, 33),
+        ("meadow-south-edge", 9, 23),
     ];
 
     private static async Task KeepAsync(IPage page, string device, string subject, Clip? clip = null)

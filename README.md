@@ -55,8 +55,7 @@ where its context is lost and does not come back, or with `…/garden?renderer=c
 instead, flat; the game root says so (`data-renderer`, `data-renderer-fallback`). The title, the days of creation,
 the reader and all text and menus are flat pages. `docs/spike-threejs.md` has the history.
 
-**Modesty, rule M1, as decision D18 amended it** (the session's reading of D18, to be confirmed by Jeffrey before
-final art is made; design, sections 1, 5.3 and 5.6). The figures are never anatomical: the pelvic region of both is
+**Modesty, rule M1, as decision D18 amended it** (confirmed by Jeffrey on 2026-10-10 ("All good", then "Do it" to promoting it); design, sections 1, 5.3 and 5.6). The figures are never anatomical: the pelvic region of both is
 a smooth, featureless continuation of the body shape, and the woman's chest is a plain torso shape covered by her
 long hair whenever it faces the viewer. Three checks hold it. `RigStructure` lists what a rig may hold (plain
 shapes, the seven blocks of the body, hair, the eyes, the apron and the coat, each in a colour of its kind): a rig

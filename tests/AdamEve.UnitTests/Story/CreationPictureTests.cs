@@ -201,7 +201,7 @@ public class CreationPictureTests
 
         adam.Shapes.Concat(woman.Shapes).ShouldAllBe(shape => !greens.Contains(shape.Colour));
         woman.Shapes.Count(shape => shape.Colour == 0x2B1D16).ShouldBeGreaterThan(adam.Shapes.Count(shape => shape.Colour == 0x2B1D16) + 5);
-        woman.Shapes[^1].Colour.ShouldBe(0x2B1D16, "the hair over her chest is painted last");
+        RigStructure.AllowedColours(PartRole.Hair).ShouldContain(woman.Shapes[^1].Colour, "the hair over her chest is painted last");
     }
 
     [Test]
