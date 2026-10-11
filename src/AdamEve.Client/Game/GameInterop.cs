@@ -13,10 +13,12 @@ public static partial class GameInterop
     private const string CanvasModule = "render";
     private const string AudioModule = "audio";
     private const string ThreeModule = "render-three";
+    private const string ThingsModule = "things";
 
     private static bool imported;
     private static bool canvasImported;
     private static bool threeImported;
+    private static bool thingsImported;
 
     /// <summary>Whether the sound module is loaded: before that, nothing of it can be called.</summary>
     internal static bool Imported => imported;
@@ -128,6 +130,25 @@ public static partial class GameInterop
 
     [JSImport("detach", ThreeModule)]
     internal static partial void DetachThree();
+
+    /// <summary>
+    /// Loads the module that draws the things of the garden (the animals, the sapling, the branch) from the site
+    /// itself, once, when the garden starts, and gives it their pictures. Both renderers draw with it.
+    /// </summary>
+    /// <param name="art">The pictures as numbers (<c>ThingArt.ToNumbers</c>).</param>
+    internal static async Task ImportThingsAsync(double[] art)
+    {
+        if (!thingsImported)
+        {
+            await JSHost.ImportAsync(ThingsModule, "../js/things.js");
+            thingsImported = true;
+        }
+
+        SetThingArt(art);
+    }
+
+    [JSImport("setArt", ThingsModule)]
+    internal static partial void SetThingArt([JSMarshalAs<JSType.Array<JSType.Number>>] double[] art);
 
     [JSImport("setEnabled", AudioModule)]
     internal static partial void SetSoundEnabled(bool enabled);

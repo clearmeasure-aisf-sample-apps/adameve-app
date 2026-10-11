@@ -32,6 +32,7 @@
 // any other origin.
 
 import { HEADER, ENTRY, CHARACTER, ANCHORS, ANCHOR_COUNT, PERSPECTIVE, createShell, drift, openPage, readAtlas, scatter } from "./shell.js";
+import { createThings } from "./things.js";
 
 // Where the render list carries the camera (AdamEve.Core.Game.RenderList; a unit test compares these numbers).
 const EYE_X = 16;
@@ -1320,6 +1321,7 @@ function draw(list, seconds) {
         g.rings.value[index].set(list[ANCHORS + index * 2], list[ANCHORS + index * 2 + 1], onStones ? 0.9 : 0);
     }
     air(g, list, tilt, seconds);
+    g.things.update(list, tilt);
     g.time.value = seconds;
 
 
@@ -1396,6 +1398,7 @@ export async function attach(listView, inputView, tiles, ground, atlas, kinds, c
         lost: false, lostTimer: 0,
     };
     buildScene(THREE, g);
+    g.things = createThings(THREE, g.scene);
     shell.listen(reduced, "change", () => { g.motion = !reduced.matches; });
 
     // A lost WebGL context: the browser is asked to give it back, and Three.js then builds everything anew by
