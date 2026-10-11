@@ -12,6 +12,7 @@
 // it shares with the other renderer (input, the frame, the game root) is shell.js. Nothing here asks the network.
 
 import { HEADER, ENTRY, FLAT, createShell, drift, openPage, readAtlas, scatter } from "./shell.js";
+import { drawThings } from "./things.js";
 
 const CHUNK_TILES = 16;
 const KEPT_CHUNKS = 6;
@@ -178,6 +179,7 @@ function draw(list) {
             (list[at + 5] - cameraX) * scale, (list[at + 6] - cameraY) * scale);
         context.drawImage(image.canvas, image.left, image.top, image.width, image.height);
     }
+    drawThings(context, list, scale, cameraX, cameraY, game.things);
 }
 
 function tick(now) {
@@ -207,6 +209,7 @@ export async function attach(listView, inputView, tiles, ground, atlas, kinds, c
         atlas: buildAtlas(atlas, 3),
         chunks: new Map(),
         chunkScale: 0,
+        things: { published: -1 },
         frameRequest: 0,
     };
     game.frameRequest = requestAnimationFrame(tick);

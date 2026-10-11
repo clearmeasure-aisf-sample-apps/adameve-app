@@ -652,3 +652,256 @@ a {
         animation: none;
     }
 }
+
+/* The man's path before the woman, beats B8 to B13, over the garden: the picture of the formation or the garden
+   itself above, and below it the Scripture card, or the three kind-names of an animal. Scripture is the card;
+   what the player is to do is narration, plain; the label of the man is small, in a corner. */
+.story {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    pointer-events: none;
+}
+
+.story-stage {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.story-scene {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    overflow: hidden;
+    background: #24170f;
+    container-type: size;
+    pointer-events: auto;
+}
+
+/* The presence of the LORD God while his voice speaks: a warm light over the garden. Never a figure. */
+.voice-light {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    background: radial-gradient(ellipse at 50% 36%, rgba(255, 246, 216, 0.9) 0, rgba(255, 231, 168, 0.5) 28%, rgba(255, 231, 168, 0) 66%);
+    animation: scene-appear 1.6s ease-out both, voice-breathe 6s ease-in-out 1.6s infinite alternate;
+}
+
+@keyframes voice-breathe {
+    from {
+        opacity: 1;
+    }
+
+    to {
+        opacity: 0.8;
+    }
+}
+
+.story-label {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    margin: 0;
+    padding: 0.2rem 0.7rem;
+    border: 2px solid #1f2a1c;
+    border-radius: 0.5rem;
+    color: #1f2a1c;
+    background: #f6f3e7;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.story-task {
+    position: absolute;
+    top: 3.4rem;
+    left: 0.5rem;
+    box-sizing: border-box;
+    max-width: calc(100% - 1rem);
+    padding: 0.3rem 0.7rem;
+    border: 2px solid #56634f;
+    border-radius: 0.5rem;
+    color: #1f2a1c;
+    background: #ffffff;
+}
+
+.story-journal-button {
+    position: absolute;
+    top: 4rem;
+    right: 0.5rem;
+    pointer-events: auto;
+    touch-action: manipulation;
+}
+
+.story-panel {
+    box-sizing: border-box;
+    grid-row: 2;
+    max-height: 72vh;
+    padding: 0.5rem 0.75rem;
+    overflow: auto;
+    border-top: 2px solid #56634f;
+    color: #1f2a1c;
+    background: #f6f3e7;
+    pointer-events: auto;
+    touch-action: manipulation;
+}
+
+.story-panel .game-button {
+    touch-action: manipulation;
+}
+
+.story-panel .game-button:focus-visible {
+    outline-color: #1d4d2b;
+}
+
+.story-card {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.story-card .scripture-card {
+    margin: 0 0 0.5rem;
+    font-size: 1em;
+}
+
+.story-card .scripture-reference {
+    font-size: 0.85em;
+}
+
+.story-definition {
+    margin: 0 0 0.5rem;
+    font-size: 0.9em;
+}
+
+.story-controls {
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* Naming the animals: the picture of the animal, a line of narration, and three kind-names with their meanings. */
+.story-naming,
+.story-journal {
+    background: #ffffff;
+}
+
+.naming-head {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.thing-picture {
+    display: block;
+    flex: none;
+    width: 4.5rem;
+    height: 3.75rem;
+}
+
+.naming-choice {
+    display: flex;
+    gap: 0.5rem;
+    margin: 0.4rem 0 0;
+}
+
+.naming-word {
+    flex: 1;
+    text-align: left;
+}
+
+.naming-explained {
+    min-height: 1.5em;
+    margin-top: 0.4rem;
+    font-size: 0.9em;
+}
+
+.story-journal {
+    grid-row: 1 / span 2;
+    max-height: 100%;
+}
+
+.journal-list {
+    margin: 0 0 0.5rem;
+    padding: 0;
+    list-style: none;
+}
+
+.journal-entry {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    margin: 0.25rem 0;
+}
+
+.journal-entry .thing-picture {
+    width: 3.2rem;
+    height: 2.8rem;
+}
+
+/* The formation (Genesis 2:7): dust in the air, then a light, then the man, whole. Nothing is shaped. */
+.formation-Mist {
+    animation: scene-appear 2.4s ease-out both, mist-drift 9s ease-in-out 2.4s infinite alternate;
+}
+
+.formation-Dust {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: dust-gather 3.2s ease-out both;
+}
+
+.formation-Breath {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: scene-spread 2.4s ease-out 1.2s both;
+}
+
+.formation-Man {
+    animation: scene-appear 1.6s ease-out 2.6s both;
+}
+
+@keyframes mist-drift {
+    from {
+        transform: translateX(-8px);
+    }
+
+    to {
+        transform: translateX(8px);
+    }
+}
+
+@keyframes dust-gather {
+    from {
+        opacity: 0;
+        transform: scale(1.5);
+    }
+
+    60% {
+        opacity: 1;
+    }
+
+    to {
+        opacity: 0.25;
+        transform: scale(0.6);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .voice-light,
+    .formation-Mist,
+    .formation-Dust,
+    .formation-Breath,
+    .formation-Man {
+        animation: none;
+    }
+}

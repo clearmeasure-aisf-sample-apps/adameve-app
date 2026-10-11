@@ -14,6 +14,9 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 // The start-up content check: the embedded canonical text is parsed and checked once, before any page shows.
 builder.Services.AddSingleton(GameContent.LoadEmbedded());
 
+// The story that plays in the garden: the man's path before the woman.
+builder.Services.AddSingleton<GardenStorySession>();
+
 // The garden: the game that is playing in this tab.
 builder.Services.AddSingleton<GameSession>();
 

@@ -12,7 +12,7 @@ namespace AdamEve.Client.Game;
 /// raises <see cref="Changed"/> only when text or a menu changes: components render then, never for each frame
 /// (design, section 7.2).
 /// </summary>
-public sealed class GameSession(ContentLoadResult content)
+public sealed class GameSession(ContentLoadResult content, GardenStorySession story)
 {
     // The render list and the input block: allocated once and pinned, so the renderer module reads and writes the
     // game's memory itself, with one call a frame.
@@ -67,6 +67,9 @@ public sealed class GameSession(ContentLoadResult content)
     /// <summary>The id of the region the player is in, or null.</summary>
     public string? RegionId => game?.RegionId;
 
+    // The story showed something else, or its journal opened or closed: the world waits, or goes on.
+    private void StoryChanged() => Pause();
+
     /// <summary>Reads the settings, once.</summary>
     public void LoadSettings()
     {
@@ -99,8 +102,13 @@ public sealed class GameSession(ContentLoadResult content)
         MenuOpen = again && MenuOpen;
         var started = new GardenGame(garden.Map, garden.Adam, garden.Woman, garden.Animations, saved.Save) { Paused = SaveUnreadable || MenuOpen };
         game = started;
+        story.Changed -= StoryChanged;
+        story.Changed += StoryChanged;
+        story.Begin(started, saved.Save);
+        Pause();
 
         await GameInterop.ImportAsync();
+        await GameInterop.ImportThingsAsync(ThingArt.ToNumbers());
         JsAudio.SetEnabled(Settings.Sound);
         GameInterop.OnFrame = Frame;
         GameInterop.OnRendererLost = RendererLost;
@@ -190,6 +198,8 @@ public sealed class GameSession(ContentLoadResult content)
         }
 
         game = null;
+        story.Changed -= StoryChanged;
+        story.End();
     }
 
     /// <summary>Opens the menu, or closes it.</summary>
@@ -254,7 +264,7 @@ public sealed class GameSession(ContentLoadResult content)
             return;
         }
 
-        LocalStorageSaveStore.Save(game.ToSave());
+        LocalStorageSaveStore.Save(story.SaveOf(game));
         Stop();
         contextLost = true;
         CanvasGeneration++;
@@ -273,7 +283,7 @@ public sealed class GameSession(ContentLoadResult content)
     {
         if (game is not null)
         {
-            game.Paused = MenuOpen || SaveUnreadable;
+            game.Paused = MenuOpen || SaveUnreadable || story.Blocks;
         }
     }
 
@@ -287,7 +297,14 @@ public sealed class GameSession(ContentLoadResult content)
         var events = game.Frame(nowMilliseconds, input, list);
         if ((events & FrameEvents.Stopped) != 0)
         {
-            LocalStorageSaveStore.Save(game.ToSave());
+            LocalStorageSaveStore.Save(story.SaveOf(game));
+        }
+
+        if (!MenuOpen && !SaveUnreadable)
+        {
+            // The story learns where the player stands; a card it then shows makes the world wait.
+            story.AfterFrame(events);
+            Pause();
         }
 
         if ((events & FrameEvents.Menu) != 0)

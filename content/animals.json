@@ -1,0 +1,194 @@
+[
+  {
+    "id": "elephant", "category": "beast", "sprite": "elephant",
+    "kindNames": [
+      { "id": "pachyderm", "word": "pachyderm", "meaning": "thick-skinned beast" },
+      { "id": "proboscid", "word": "proboscid", "meaning": "trunked beast" },
+      { "id": "tusker", "word": "tusker", "meaning": "tusked beast" }
+    ]
+  },
+  {
+    "id": "sheep", "category": "cattle", "sprite": "sheep",
+    "kindNames": [
+      { "id": "ovine", "word": "ovine", "meaning": "the sheep kind" },
+      { "id": "ruminant", "word": "ruminant", "meaning": "a beast that chews the cud" },
+      { "id": "wool-bearer", "word": "wool bearer", "meaning": "a beast that grows wool" }
+    ]
+  },
+  {
+    "id": "dove", "category": "fowl", "sprite": "dove",
+    "kindNames": [
+      { "id": "columbid", "word": "columbid", "meaning": "the dove and pigeon family" },
+      { "id": "columbine", "word": "columbine", "meaning": "of doves" },
+      { "id": "culver", "word": "culver", "meaning": "old word for a dove" }
+    ]
+  },
+  {
+    "id": "lion", "category": "beast", "sprite": "lion",
+    "kindNames": [
+      { "id": "feline", "word": "feline", "meaning": "the cat kind" },
+      { "id": "leonine", "word": "leonine", "meaning": "of lions" },
+      { "id": "great-cat", "word": "great cat", "meaning": "a large wild cat" }
+    ]
+  },
+  {
+    "id": "pig", "category": "cattle", "sprite": "pig",
+    "kindNames": [
+      { "id": "swine", "word": "swine", "meaning": "the pig kind" },
+      { "id": "porcine", "word": "porcine", "meaning": "of pigs" },
+      { "id": "hog", "word": "hog", "meaning": "a pig" }
+    ]
+  },
+  {
+    "id": "rabbit", "category": "beast", "sprite": "rabbit",
+    "kindNames": [
+      { "id": "leporid", "word": "leporid", "meaning": "the hare family" },
+      { "id": "coney", "word": "coney", "meaning": "old word for a rabbit, used in the KJV" },
+      { "id": "lagomorph", "word": "lagomorph", "meaning": "hares and rabbits" }
+    ]
+  },
+  {
+    "id": "eagle", "category": "fowl", "sprite": "eagle",
+    "kindNames": [
+      { "id": "raptor", "word": "raptor", "meaning": "a bird of prey" },
+      { "id": "aquiline", "word": "aquiline", "meaning": "of eagles" },
+      { "id": "bird-of-prey", "word": "bird of prey", "meaning": "a bird that hunts for its food" }
+    ]
+  },
+  {
+    "id": "horse", "category": "cattle", "sprite": "horse",
+    "kindNames": [
+      { "id": "equine", "word": "equine", "meaning": "the horse kind" },
+      { "id": "steed", "word": "steed", "meaning": "a riding horse" },
+      { "id": "courser", "word": "courser", "meaning": "a swift horse" }
+    ]
+  },
+  {
+    "id": "deer", "category": "beast", "sprite": "deer",
+    "kindNames": [
+      { "id": "cervine", "word": "cervine", "meaning": "of deer" },
+      { "id": "cervid", "word": "cervid", "meaning": "the deer family" },
+      { "id": "hart", "word": "hart", "meaning": "old word for a male deer, used in the KJV" }
+    ]
+  },
+  {
+    "id": "rooster", "category": "fowl", "sprite": "rooster",
+    "kindNames": [
+      { "id": "chanticleer", "word": "chanticleer", "meaning": "old name for a rooster" },
+      { "id": "galliform", "word": "galliform", "meaning": "the group of chickens, pheasants and quail" },
+      { "id": "poultry", "word": "poultry", "meaning": "farm birds such as chickens" }
+    ]
+  },
+  {
+    "id": "bear", "category": "beast", "sprite": "bear",
+    "kindNames": [
+      { "id": "ursine", "word": "ursine", "meaning": "of bears" },
+      { "id": "bruin", "word": "bruin", "meaning": "old name for a bear" },
+      { "id": "ursid", "word": "ursid", "meaning": "the bear family" }
+    ]
+  },
+  {
+    "id": "goat", "category": "cattle", "sprite": "goat",
+    "kindNames": [
+      { "id": "caprine", "word": "caprine", "meaning": "the goat kind" },
+      { "id": "hircine", "word": "hircine", "meaning": "of goats" },
+      { "id": "caprid", "word": "caprid", "meaning": "the group of goats and sheep" }
+    ]
+  },
+  {
+    "id": "sparrow", "category": "fowl", "sprite": "sparrow",
+    "kindNames": [
+      { "id": "passerine", "word": "passerine", "meaning": "a perching bird" },
+      { "id": "songbird", "word": "songbird", "meaning": "a bird that sings" },
+      { "id": "oscine", "word": "oscine", "meaning": "the songbird group" }
+    ]
+  },
+  {
+    "id": "camel", "category": "cattle", "sprite": "camel",
+    "kindNames": [
+      { "id": "camelid", "word": "camelid", "meaning": "the camel family" },
+      { "id": "dromedary", "word": "dromedary", "meaning": "one-humped camel" },
+      { "id": "humpback", "word": "humpback", "meaning": "old nickname" }
+    ]
+  },
+  {
+    "id": "squirrel", "category": "beast", "sprite": "squirrel",
+    "kindNames": [
+      { "id": "sciurid", "word": "sciurid", "meaning": "the squirrel family" },
+      { "id": "sciurine", "word": "sciurine", "meaning": "of squirrels" },
+      { "id": "rodent", "word": "rodent", "meaning": "a gnawing animal" }
+    ]
+  },
+  {
+    "id": "duck", "category": "fowl", "sprite": "duck",
+    "kindNames": [
+      { "id": "anatine", "word": "anatine", "meaning": "of ducks" },
+      { "id": "anatid", "word": "anatid", "meaning": "the duck, goose and swan family" },
+      { "id": "waterfowl", "word": "waterfowl", "meaning": "a bird that lives on the water" }
+    ]
+  },
+  {
+    "id": "cow", "category": "cattle", "sprite": "cow",
+    "kindNames": [
+      { "id": "bovine", "word": "bovine", "meaning": "the ox kind" },
+      { "id": "kine", "word": "kine", "meaning": "cows, a KJV word" },
+      { "id": "neat", "word": "neat", "meaning": "old word for cattle" }
+    ]
+  },
+  {
+    "id": "wolf", "category": "beast", "sprite": "wolf",
+    "kindNames": [
+      { "id": "canine", "word": "canine", "meaning": "the dog kind" },
+      { "id": "lupine", "word": "lupine", "meaning": "of wolves" },
+      { "id": "wolfkind", "word": "wolfkind", "meaning": "wolves" }
+    ]
+  },
+  {
+    "id": "peacock", "category": "fowl", "sprite": "peacock",
+    "kindNames": [
+      { "id": "peafowl", "word": "peafowl", "meaning": "the peacock kind" },
+      { "id": "pavonine", "word": "pavonine", "meaning": "of peacocks" },
+      { "id": "phasianid", "word": "phasianid", "meaning": "the pheasant family" }
+    ]
+  },
+  {
+    "id": "donkey", "category": "cattle", "sprite": "donkey",
+    "kindNames": [
+      { "id": "equid", "word": "equid", "meaning": "the horse family" },
+      { "id": "burro", "word": "burro", "meaning": "a small donkey" },
+      { "id": "beast-of-burden", "word": "beast of burden", "meaning": "an animal that carries loads" }
+    ]
+  },
+  {
+    "id": "hedgehog", "category": "beast", "sprite": "hedgehog",
+    "kindNames": [
+      { "id": "urchin", "word": "urchin", "meaning": "old word for a hedgehog" },
+      { "id": "hedgepig", "word": "hedgepig", "meaning": "old name for a hedgehog" },
+      { "id": "erinaceid", "word": "erinaceid", "meaning": "the hedgehog family" }
+    ]
+  },
+  {
+    "id": "raven", "category": "fowl", "sprite": "raven",
+    "kindNames": [
+      { "id": "corvid", "word": "corvid", "meaning": "the crow family" },
+      { "id": "corvine", "word": "corvine", "meaning": "of crows and ravens" },
+      { "id": "corbie", "word": "corbie", "meaning": "a Scots word for a raven or crow" }
+    ]
+  },
+  {
+    "id": "badger", "category": "beast", "sprite": "badger",
+    "kindNames": [
+      { "id": "brock", "word": "brock", "meaning": "old name for a badger" },
+      { "id": "mustelid", "word": "mustelid", "meaning": "the weasel family" },
+      { "id": "meline", "word": "meline", "meaning": "of badgers" }
+    ]
+  },
+  {
+    "id": "heron", "category": "fowl", "sprite": "heron",
+    "kindNames": [
+      { "id": "wader", "word": "wader", "meaning": "a bird that wades in shallow water" },
+      { "id": "ardeid", "word": "ardeid", "meaning": "the heron family" },
+      { "id": "hern", "word": "hern", "meaning": "old word for a heron" }
+    ]
+  }
+]

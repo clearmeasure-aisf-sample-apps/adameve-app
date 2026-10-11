@@ -1,6 +1,7 @@
 using AdamEve.Core.Input;
 using AdamEve.Core.Rigs;
 using AdamEve.Core.Saves;
+using AdamEve.Core.Story;
 using AdamEve.Core.World;
 
 namespace AdamEve.Core.Game;
@@ -20,6 +21,9 @@ public enum FrameEvents
 
     /// <summary>The player arrived on a tile and stays: the position is to be saved.</summary>
     Stopped = 4,
+
+    /// <summary>The player pressed the action key (Space or Enter) outside a control of the page.</summary>
+    Action = 8,
 }
 
 /// <summary>
@@ -33,6 +37,9 @@ public sealed class GardenGame
     private const int SpriteReserve = 96;
     private const double FeetBelowCentre = 8;
     private const double SpriteBaseAboveTileBottom = 6;
+
+    /// <summary>Where the anchor of a character lies that is not in the garden: far outside every map.</summary>
+    public const double Nowhere = -100000;
 
     private readonly TileMap map;
     private readonly GardenScenery scenery;
@@ -56,6 +63,7 @@ public sealed class GardenGame
     private double pendingTapY;
     private double ambientSeconds;
     private double walkSeconds;
+    private bool otherPresent = true;
 
     /// <summary>Starts the garden.</summary>
     /// <param name="map">The map.</param>
@@ -126,6 +134,23 @@ public sealed class GardenGame
     /// <summary>The covering variant of both characters. Slice S2 plays before Genesis 3:7.</summary>
     public Covering Covering { get; init; } = Covering.None;
 
+    /// <summary>
+    /// Whether the character the player does not play is in the garden. On the man's path the woman is not made
+    /// before Genesis 2:22: she is then not drawn, not judged and in nobody's way.
+    /// </summary>
+    public bool OtherPresent
+    {
+        get => otherPresent;
+        set
+        {
+            otherPresent = value;
+            walker.Obstacle = value ? actors[1 - player].Tile : null;
+        }
+    }
+
+    /// <summary>The things of the garden that are not scenery and not a person: animals, the sapling, the branch.</summary>
+    public GardenThings Things { get; } = new();
+
     /// <summary>A card, a choice or the menu is open: the world waits, the ambient animation goes on.</summary>
     public bool Paused { get; set; }
 
@@ -150,6 +175,10 @@ public sealed class GardenGame
     /// <summary>The game as it is saved: where the player stands, and the story as the resumed game held it.</summary>
     public SaveGame ToSave() => resumed with { Character = Character, TileX = walker.Tile.X, TileY = walker.Tile.Y, Facing = walker.Facing };
 
+    /// <summary>The game as it is saved: where the player stands, and the story as it stands now.</summary>
+    /// <param name="story">The state of the story.</param>
+    public SaveGame ToSave(StoryState story) => SaveGame.Of(story, walker.Tile) with { Facing = walker.Facing };
+
     /// <summary>
     /// One frame: reads the input block, advances the world in fixed steps, and writes the render list with the
     /// camera and the M1 verdict of exactly what is drawn.
@@ -172,6 +201,13 @@ public sealed class GardenGame
         {
             events |= FrameEvents.Menu;
         }
+
+        if (input[InputBlock.Action] != 0)
+        {
+            events |= FrameEvents.Action;
+        }
+
+        Things.Advance(loop.FrameSeconds);
 
         if (Paused)
         {
@@ -257,6 +293,12 @@ public sealed class GardenGame
         var verdict = 0;
         foreach (var actor in actors)
         {
+            if (Absent(actor))
+            {
+                actor.ExposedZone = -1;
+                continue;
+            }
+
             // A figure far outside the picture (beside or behind the eye) is not seen; it is judged all the same,
             // at a scale a figure can be seen at.
             var scale = flat ? flatCamera.Scale : camera.ScaleAt((actor.X + 0.5) * size, FeetY(actor));
@@ -323,9 +365,12 @@ public sealed class GardenGame
         list[RenderList.Moving] = walker.Moving ? 1 : 0;
         foreach (var actor in actors)
         {
-            list[RenderList.Anchors + (actor.RigIndex * 2)] = (actor.X + 0.5) * size;
-            list[RenderList.Anchors + (actor.RigIndex * 2) + 1] = FeetY(actor);
+            // Who is not in the garden has no place in it: the anchor lies far outside the map.
+            list[RenderList.Anchors + (actor.RigIndex * 2)] = Absent(actor) ? Nowhere : (actor.X + 0.5) * size;
+            list[RenderList.Anchors + (actor.RigIndex * 2) + 1] = Absent(actor) ? Nowhere : FeetY(actor);
         }
+
+        Things.Write(list, size, FeetBelowCentre, ambientSeconds);
 
         list[RenderList.Projection] = flat ? InputBlock.Flat : InputBlock.Perspective;
         list[RenderList.EyeX] = camera.EyeX;
@@ -338,12 +383,14 @@ public sealed class GardenGame
         list[RenderList.FigureDepthHeight] = PerspectiveCamera.FigureDepthHeight;
     }
 
+    private bool Absent(Actor actor) => !otherPresent && actor != actors[player];
+
     private double FeetY(Actor actor) => ((actor.Y + 0.5) * map.TileSize) + FeetBelowCentre;
 
     // A figure whose frame did not pass is not drawn at all (fail closed): the frame is counted, and the page says so.
     private void WriteFigure(Actor actor, Span<double> list, ref int count)
     {
-        if (actor.ExposedZone >= 0)
+        if (actor.ExposedZone >= 0 || Absent(actor))
         {
             return;
         }

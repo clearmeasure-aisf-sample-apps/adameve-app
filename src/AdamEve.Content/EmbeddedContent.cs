@@ -14,6 +14,10 @@ public static class EmbeddedContent
     /// <exception cref="ContentFormatException">The assembly does not hold the file.</exception>
     public static byte[] Glossary() => Read(GlossaryResource);
 
+    /// <summary>The bytes of the animals and their kind-names, <c>content/animals.json</c>.</summary>
+    /// <exception cref="ContentFormatException">The assembly does not hold the file.</exception>
+    public static byte[] Animals() => Read("AdamEve.Content.animals.json");
+
     /// <summary>The bytes of the map of the garden, <c>content/maps/garden.tmj</c>.</summary>
     /// <exception cref="ContentFormatException">The assembly does not hold the file.</exception>
     public static byte[] Map() => Read("AdamEve.Content.maps.garden.tmj");

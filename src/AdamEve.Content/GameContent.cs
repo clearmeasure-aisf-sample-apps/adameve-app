@@ -11,8 +11,9 @@ namespace AdamEve.Content;
 /// </summary>
 public sealed class GameContent
 {
-    private GameContent(ScriptureDocument scripture, Glossary glossary, GardenContent garden)
+    private GameContent(ScriptureDocument scripture, Glossary glossary, GardenContent garden, Animals animals)
     {
+        Animals = animals;
         Scripture = scripture;
         Glossary = glossary;
         Garden = garden;
@@ -27,10 +28,14 @@ public sealed class GameContent
     /// <summary>The garden: its map, the rigs of Adam and the woman, and their animations.</summary>
     public GardenContent Garden { get; }
 
+    /// <summary>The animals brought to Adam, with their kind-names.</summary>
+    public Animals Animals { get; }
+
     /// <summary>
     /// Loads the content from bytes and checks it: the SHA-256 of the canonical text is the pinned value, the text
     /// parses, the glossary parses and each of its words occurs in at least one verse; the days of creation show
-    /// the opening verses of the text in order; and the embedded garden
+    /// the opening verses of the text in order and the man's path the verses after them; the animals keep the kind-name
+    /// rules and are the ones the story brings; and the embedded garden
     /// loads (<see cref="GardenContent.Load"/>).
     /// </summary>
     /// <param name="scripture">The bytes of the canonical text.</param>
@@ -60,7 +65,27 @@ public sealed class GameContent
             throw new ContentFormatException("The days of creation do not show the opening verses of the canonical text in order.");
         }
 
-        return new GameContent(document, words, GardenContent.LoadEmbedded());
+        // The man's path: Genesis 2:4 to 2:20 follow the days of creation, each verse once and in order.
+        var path = document.Verses.Skip(CreationStory.Cards.Count).Take(GardenStory.Cards.Count).Select(verse => new ScriptureRef(verse.Ref.Chapter, verse.Ref.Number));
+        if (!path.SequenceEqual(GardenStory.Cards))
+        {
+            throw new ContentFormatException("The man's path does not show the verses after the days of creation in order.");
+        }
+
+        // The animals: the kind-name rules of the design, the animals the story brings, and the groups of Genesis 2:20.
+        var animals = Animals.Parse(EmbeddedContent.Animals());
+        if (!animals.MatchTheRoster())
+        {
+            throw new ContentFormatException("The animals of the content are not the animals the story brings.");
+        }
+
+        var named = document.Find(GardenStory.NoHelpMeetFound).Text;
+        if (Animals.Categories.FirstOrDefault(category => !named.Contains(category, StringComparison.Ordinal)) is { } stray)
+        {
+            throw new ContentFormatException($"The group \"{stray}\" is not a word of Genesis 2:20.");
+        }
+
+        return new GameContent(document, words, GardenContent.LoadEmbedded(), animals);
     }
 
     /// <summary>The start-up content check: loads and checks the content this assembly embeds.</summary>

@@ -1,0 +1,41 @@
+@using System.Globalization
+@using AdamEve.Core.Game
+@* The picture of a thing of the garden (an animal), outside the canvas: the same flat shapes the renderer draws,
+   written as the shapes of an svg element. Made by code from numbers; no image file, and no style attribute. *@
+<svg class="thing-picture" viewBox="@ViewBox" aria-hidden="true" focusable="false" data-testid="thing-picture">
+    @foreach (var shape in Shapes)
+    {
+        var turn = $"translate({N(shape.X)} {N(shape.Y)}) rotate({N(shape.Turn)})";
+        @if (shape.Kind == ThingShapeKind.Ellipse)
+        {
+            <ellipse rx="@N(shape.Width / 2)" ry="@N(shape.Height / 2)" fill="@Hex(shape.Colour)" transform="@turn" />
+        }
+        else if (shape.Kind == ThingShapeKind.Box)
+        {
+            <rect x="@N(-shape.Width / 2)" y="@N(-shape.Height / 2)" width="@N(shape.Width)" height="@N(shape.Height)" rx="@N(shape.Round)" fill="@Hex(shape.Colour)" transform="@turn" />
+        }
+        else
+        {
+            <polygon points="@($"0,{N(-shape.Height / 2)} {N(shape.Width / 2)},{N(shape.Height / 2)} {N(-shape.Width / 2)},{N(shape.Height / 2)}")" fill="@Hex(shape.Colour)" transform="@turn" />
+        }
+    }
+</svg>
+
+@code {
+    /// <summary>The shapes of the picture, the farthest first.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<ThingShape> Shapes { get; set; } = [];
+
+    private string ViewBox
+    {
+        get
+        {
+            var (left, top, right, bottom) = ThingArt.Bounds(Shapes);
+            return $"{N(left - 2)} {N(top - 2)} {N(right - left + 4)} {N(bottom - top + 4)}";
+        }
+    }
+
+    private static string N(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
+
+    private static string Hex(int colour) => "#" + colour.ToString("X6", CultureInfo.InvariantCulture);
+}

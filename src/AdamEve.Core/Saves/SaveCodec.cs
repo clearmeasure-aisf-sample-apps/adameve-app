@@ -33,7 +33,8 @@ public static class SaveCodec
 
     /// <summary>
     /// Reads a saved game. It is read only when it is JSON of a version this build knows, every choice in it is one
-    /// of the fixed lists, its beat is one of its chapter, and its tile is one a character may stand on.
+    /// of the fixed lists, its beat is one of its chapter, every kind-name in it is one of the three of its animal
+    /// and there are as many as its beat allows, and its tile is one a character may stand on.
     /// </summary>
     /// <param name="json">The text kept under <see cref="SaveKey"/>; null or empty when there is none.</param>
     /// <param name="map">The map of the garden.</param>
@@ -52,7 +53,9 @@ public static class SaveCodec
                 && save.SchemaVersion == CurrentVersion
                 && Enum.IsDefined(save.Character)
                 && Enum.IsDefined(save.Facing)
-                && StoryMachine.IsBeatOf(save.Chapter, save.Beat)
+                && StoryMachine.CanStandAt(save.Character, save.Chapter, save.Beat)
+                && save.NamedAnimals is not null
+                && NamesFit(save)
                 && map.IsWalkable(new TilePos(save.TileX, save.TileY)))
             {
                 return new SaveReadResult(SaveState.Loaded, save);
@@ -64,6 +67,22 @@ public static class SaveCodec
         }
 
         return new SaveReadResult(SaveState.Corrupt, null);
+    }
+
+    // The kind-names of a saved game: none before the naming, all of them after it, and each one of its animal's.
+    private static bool NamesFit(SaveGame save)
+    {
+        if (!AnimalRoster.AreChoices(save.NamedAnimals))
+        {
+            return false;
+        }
+
+        return save.Chapter switch
+        {
+            StoryChapter.Naming or StoryChapter.GardenLife => save.Character == PlayerCharacter.Adam || save.NamedAnimals.Length == 0,
+            StoryChapter.WomanFormed => save.NamedAnimals.Length == AnimalRoster.Count,
+            _ => save.NamedAnimals.Length == 0,
+        };
     }
 
     /// <summary>The settings as JSON.</summary>

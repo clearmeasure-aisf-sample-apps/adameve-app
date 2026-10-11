@@ -29,6 +29,9 @@
         </div>
     </div>
 
+    @* The story that plays in the garden: the man's path before the woman. The menu lies over it. *@
+    <StoryPanel />
+
     <button type="button" class="game-button game-menu" data-testid="menu-button" aria-expanded="@(Session.MenuOpen ? "true" : "false")" @onclick="Session.ToggleMenu">@GameText.Menu</button>
 
     <section class="game-panel @(Session.MenuOpen ? null : "game-panel-empty")" data-game-panel data-testid="settings" aria-live="polite">

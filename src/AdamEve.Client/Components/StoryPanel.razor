@@ -1,0 +1,181 @@
+@using AdamEve.Client.Game
+@using AdamEve.Core.Game
+@using AdamEve.Core.Rigs
+@using AdamEve.Core.Story
+@implements IDisposable
+@inject GardenStorySession Story
+@inject ContentLoadResult ContentCheck
+
+@* The man's path before the woman, beats B8 to B13 (design, section 2.2), over the garden. It shows what the story
+   machine answers and nothing of its own. Three kinds of text that never look alike: Scripture is a Scripture card
+   with its reference; what the player is to do is a line of narration in a plain panel; nobody speaks a line the
+   game wrote. The LORD God is never drawn: while his voice speaks there is a light. The data- attributes are what
+   the tests read. *@
+@if (Story.Plays)
+{
+    <div class="story" data-testid="story" @onkeydown="KeyDown"
+         data-chapter="@Story.State.Chapter" data-beat="@Story.State.Beat" data-card="@Story.Card?.Ref.ToString()" data-man="@Story.State.Man"
+         data-task="@Story.Task" data-animal="@Story.Brought?.Id" data-named="@Story.State.NamedAnimals.Count" data-pairs="@(GardenStory.InPairs(Story.State) ? "true" : "false")"
+         data-woman="@(Story.State.WomanCreated ? "true" : "false")">
+        <div class="story-stage">
+            @if (Story.Formation.Count > 0)
+            {
+                @* Genesis 2:4 to 2:7: the earth, the mist, and with 2:7 dust, a light and the man, whole. No body is shaped. *@
+                <div class="story-scene" data-testid="formation" data-concealment="@Story.FormationConcealment">
+                    <svg class="scene-picture" viewBox="0 0 @FormationPicture.Width @FormationPicture.Height" aria-hidden="true" focusable="false">
+                        @foreach (var layer in Story.Formation)
+                        {
+                            <g @key="layer" class="scene-layer formation-@layer" data-layer="@layer">
+                                @if (layer == FormationLayer.Man)
+                                {
+                                    @if (Story.Man is { } man)
+                                    {
+                                        <g transform="translate(@FormationPicture.ManX @FormationPicture.ManY)" data-figure="man" data-concealment="@man.Concealment">@SvgShapes.Of(man.Shapes)</g>
+                                    }
+                                }
+                                else
+                                {
+                                    @SvgShapes.Of("formation-" + layer, FormationPicture.ShapesOf(layer))
+                                }
+                            </g>
+                        }
+                    </svg>
+                </div>
+            }
+            else if (Story.Speaker == StorySpeaker.LordGod)
+            {
+                @* The presence of the LORD God: a warm light, while his voice speaks. Never a figure. *@
+                <div class="voice-light" data-testid="voice-light" aria-hidden="true"></div>
+            }
+
+            <p class="story-label" data-testid="man-label">@GameText.ManName(Story.State.Man)</p>
+
+            @if (Story.Task is { } task)
+            {
+                <p class="story-task narration-text" data-testid="task" aria-live="polite">@GameText.TaskLine(task)</p>
+            }
+
+            @if (Story.Journal.Count > 0 && !Story.JournalOpen)
+            {
+                <button type="button" class="game-button story-journal-button" data-testid="journal-button" @onclick="Story.ToggleJournal">@GameText.Journal</button>
+            }
+        </div>
+
+        @if (Story.JournalOpen)
+        {
+            @* The garden journal: each animal with the kind-name Adam gave it, and its meaning. Narration style. *@
+            <section class="story-panel story-journal" data-game-panel data-testid="journal" aria-live="polite">
+                <h2 class="game-panel-title">@GameText.Journal</h2>
+                <ul class="journal-list">
+                    @foreach (var entry in Story.Journal)
+                    {
+                        <li @key="entry.Animal.Id" class="journal-entry" data-testid="journal-entry" data-animal="@entry.Animal.Id" data-kind-name="@entry.KindName.Id">
+                            <ThingPicture Shapes="ThingArt.OfAnimal(entry.Animal.Sprite)" />
+                            <span class="narration-text"><strong data-testid="journal-word">@entry.KindName.Word</strong>: <span data-testid="journal-meaning">@entry.KindName.Meaning</span></span>
+                        </li>
+                    }
+                </ul>
+                <button type="button" class="game-button" data-testid="journal-close" @ref="primary" @onclick="Story.ToggleJournal">@GameText.CloseDefinition</button>
+            </section>
+        }
+        else if (Story.Card is { } verse && ContentCheck.IsLoaded)
+        {
+            <section class="story-panel story-card" data-game-panel data-testid="story-card" aria-live="polite" @onclick="Story.Primary">
+                <ScriptureCard @key="verse.Ref" Verse="verse" Speaker="Story.Speaker" Glossary="ContentCheck.Content.Glossary" OnGlossaryWord="Define" />
+                @if (defined is not null)
+                {
+                    <p class="narration-text story-definition" data-testid="glossary-definition"><strong data-testid="glossary-term">@defined.Term</strong>: <span data-testid="glossary-meaning">@defined.Definition</span></p>
+                }
+                <div class="story-controls">
+                    <button type="button" class="game-button" data-testid="primary" data-action="turn" @ref="primary" @onclick="Story.Primary" @onclick:stopPropagation>@GameText.TurnThePage</button>
+                </div>
+            </section>
+        }
+        else if (Story.Brought is { } animal)
+        {
+            @* Naming the animals (design, section 3.5, decision D9): one of three kind-names, each with its meaning. No typing. *@
+            <section class="story-panel story-naming" data-game-panel data-testid="naming" aria-live="polite">
+                <div class="naming-head">
+                    <ThingPicture Shapes="ThingArt.OfAnimal(animal.Sprite)" />
+                    <p class="narration-text" data-testid="naming-prompt">@GameText.NamingPrompt</p>
+                </div>
+                @for (var index = 0; index < animal.KindNames.Count; index++)
+                {
+                    var kindName = animal.KindNames[index];
+                    <div class="naming-choice" @key="kindName.Id">
+                        @if (index == 0)
+                        {
+                            <button type="button" class="game-button naming-word" data-testid="kind-name" data-kind-name="@kindName.Id" title="@kindName.Meaning" @ref="primary" @onclick="() => Story.Name(kindName)">@kindName.Word</button>
+                        }
+                        else
+                        {
+                            <button type="button" class="game-button naming-word" data-testid="kind-name" data-kind-name="@kindName.Id" title="@kindName.Meaning" @onclick="() => Story.Name(kindName)">@kindName.Word</button>
+                        }
+                        <button type="button" class="game-button naming-meaning" data-testid="meaning-button" aria-label="@GameText.MeaningLabel" @onclick="() => Story.Explain(kindName)">@GameText.MeaningButton</button>
+                    </div>
+                }
+                <p class="narration-text naming-explained" data-testid="meaning" aria-live="polite">
+                    @if (Story.Explained is { } explained)
+                    {
+                        <strong data-testid="meaning-word">@explained.Word</strong><text>: </text><span data-testid="meaning-text">@explained.Meaning</span>
+                    }
+                </p>
+            </section>
+        }
+    </div>
+}
+
+@code {
+    private ElementReference primary;
+    private GlossaryEntry? defined;
+    private int focused = -1;
+    private int shown = -1;
+
+    protected override void OnInitialized() => Story.Changed += Render;
+
+    public void Dispose() => Story.Changed -= Render;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // The keyboard is on the control of what was just shown: Enter or Space turns the page or gives the name.
+        if (focused != Story.Shown && (Story.Card is not null || Story.Brought is not null || Story.JournalOpen) && Story.Plays)
+        {
+            focused = Story.Shown;
+            try
+            {
+                await primary.FocusAsync(preventScroll: true);
+            }
+            catch (Microsoft.JSInterop.JSException)
+            {
+                // The control is gone again: the story went on in the meantime.
+            }
+        }
+    }
+
+    private void Render() => _ = InvokeAsync(() =>
+    {
+        if (shown != Story.Shown)
+        {
+            shown = Story.Shown;
+            defined = null;
+        }
+
+        StateHasChanged();
+    });
+
+    // The numbers 1 to 3 choose a kind-name (design, section 5.7).
+    private void KeyDown(KeyboardEventArgs key)
+    {
+        if (key.Repeat || Story.Brought is not { } animal || Story.JournalOpen)
+        {
+            return;
+        }
+
+        if (key.Key is "1" or "2" or "3" && key.Key[0] - '1' < animal.KindNames.Count)
+        {
+            Story.Name(animal.KindNames[key.Key[0] - '1']);
+        }
+    }
+
+    private void Define(GlossaryEntry entry) => defined = entry;
+}
